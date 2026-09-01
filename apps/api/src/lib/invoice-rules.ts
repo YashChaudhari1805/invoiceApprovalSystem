@@ -85,3 +85,12 @@ export function canApprove(params: { actorId: string; creatorId: string; role: R
   if (params.actorId === params.creatorId) return false;
   return true;
 }
+
+// Edit permission depends on both role AND the invoice's current status —
+// Admin can edit regardless of status; Operator only while it's still
+// Draft or Review (per the spec's permission matrix).
+export function canEditInvoice(params: { role: Role; status: InvoiceStatus }): boolean {
+  if (params.role === "ADMIN") return true;
+  if (params.role === "OPERATOR") return params.status === "DRAFT" || params.status === "REVIEW";
+  return false;
+}

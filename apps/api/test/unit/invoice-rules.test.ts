@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   isValidTransition,
   canApprove,
+  canEditInvoice,
   computeInvoiceTotals,
   can,
 } from "../../src/lib/invoice-rules";
@@ -63,6 +64,27 @@ describe("maker-checker rule", () => {
   it("blocks an Operator from approving regardless of who created it", () => {
     const ok = canApprove({ actorId: "user-2", creatorId: "user-1", role: "OPERATOR" });
     expect(ok).toBe(false);
+  });
+});
+
+describe("invoice edit permission", () => {
+  it("Admin can edit regardless of status", () => {
+    expect(canEditInvoice({ role: "ADMIN", status: "DRAFT" })).toBe(true);
+    expect(canEditInvoice({ role: "ADMIN", status: "REVIEW" })).toBe(true);
+    expect(canEditInvoice({ role: "ADMIN", status: "APPROVED" })).toBe(true);
+    expect(canEditInvoice({ role: "ADMIN", status: "REJECTED" })).toBe(true);
+  });
+
+  it("Operator can edit only while Draft or Review", () => {
+    expect(canEditInvoice({ role: "OPERATOR", status: "DRAFT" })).toBe(true);
+    expect(canEditInvoice({ role: "OPERATOR", status: "REVIEW" })).toBe(true);
+    expect(canEditInvoice({ role: "OPERATOR", status: "APPROVED" })).toBe(false);
+    expect(canEditInvoice({ role: "OPERATOR", status: "REJECTED" })).toBe(false);
+  });
+
+  it("Reviewer and Viewer can never edit", () => {
+    expect(canEditInvoice({ role: "REVIEWER", status: "DRAFT" })).toBe(false);
+    expect(canEditInvoice({ role: "VIEWER", status: "DRAFT" })).toBe(false);
   });
 });
 

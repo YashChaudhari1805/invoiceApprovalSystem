@@ -1,6 +1,11 @@
 import { FastifyInstance } from "fastify";
-import { computeInvoiceTotals, can } from "../lib/invoice-rules";
-import { createInvoiceSchema, listQuerySchema, transitionSchema } from "../modules/invoices/schemas";
+import { computeInvoiceTotals, can, canEditInvoice } from "../lib/invoice-rules";
+import {
+  createInvoiceSchema,
+  listQuerySchema,
+  transitionSchema,
+  updateInvoiceSchema,
+} from "../modules/invoices/schemas";
 
 export default async function invoiceRoutes(app: FastifyInstance) {
   const preHandler = [app.authenticate, app.requireMembership];
@@ -166,6 +171,107 @@ export default async function invoiceRoutes(app: FastifyInstance) {
     }
 
     return reply.send({ ...invoice, lineItems, activity, availableActions });
+  });
+
+  // PATCH /orgs/:orgId/invoices/:invoiceId
+  // Admin can edit regardless of status; Operator only while Draft/Review
+  // (see canEditInvoice). The DB backs this up independently via the
+  // UPDATE policy + column-level grants in migration 0004, so this app-level
+  // check is a nicer error message, not the only thing standing guard.
+  app.patch("/orgs/:orgId/invoices/:invoiceId", { preHandler }, async (req, reply) => {
+    const { invoiceId } = req.params as { invoiceId: string };
+
+    const { data: existing, error: fetchError } = await req.supabase
+      .from("invoices")
+      .select("id, status, created_by")
+      .eq("id", invoiceId)
+      .eq("organization_id", req.membership.organizationId)
+      .maybeSingle();
+
+    if (fetchError) {
+      req.log.error(fetchError);
+      return reply.code(500).send({ error: "Failed to load invoice" });
+    }
+    if (!existing) {
+      return reply.code(404).send({ error: "Invoice not found" });
+    }
+    if (!canEditInvoice({ role: req.membership.role, status: existing.status })) {
+      return reply.code(403).send({
+        error:
+          existing.status === "APPROVED" || existing.status === "REJECTED"
+            ? "This invoice can no longer be edited"
+            : "You do not have permission to edit this invoice",
+      });
+    }
+
+    const parsed = updateInvoiceSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "Invalid input", details: parsed.error.flatten() });
+    }
+    const { vendor, invoiceNumber, invoiceDate, lineItems } = parsed.data;
+
+    const updates: Record<string, unknown> = {};
+    if (vendor !== undefined) updates.vendor = vendor;
+    if (invoiceNumber !== undefined) updates.invoice_number = invoiceNumber;
+    if (invoiceDate !== undefined) updates.invoice_date = invoiceDate;
+
+    let computedLineItems;
+    if (lineItems !== undefined) {
+      const totals = computeInvoiceTotals(lineItems);
+      updates.taxable_amount = totals.taxableAmount;
+      updates.tax_amount = totals.taxAmount;
+      updates.total_amount = totals.totalAmount;
+      computedLineItems = totals.lineItems;
+    }
+
+    const { data: updated, error: updateError } = await req.supabase
+      .from("invoices")
+      .update(updates)
+      .eq("id", invoiceId)
+      .select()
+      .single();
+
+    if (updateError) {
+      if (updateError.code === "23505") {
+        return reply.code(409).send({ error: "An invoice with this vendor and invoice number already exists" });
+      }
+      req.log.error(updateError);
+      return reply.code(500).send({ error: "Failed to update invoice" });
+    }
+
+    if (computedLineItems) {
+      // Replace-all is simpler and safer than diffing add/remove/change for
+      // a take-home's scope, and line items have no identity outside their
+      // invoice that anything else references.
+      const { error: deleteError } = await req.supabase.from("line_items").delete().eq("invoice_id", invoiceId);
+      if (deleteError) {
+        req.log.error(deleteError);
+        return reply.code(500).send({ error: "Failed to update line items" });
+      }
+      const { error: insertError } = await req.supabase.from("line_items").insert(
+        computedLineItems.map((li) => ({
+          invoice_id: invoiceId,
+          description: li.description,
+          quantity: li.quantity,
+          rate: li.rate,
+          tax_rate: li.taxRate,
+          amount: li.amount,
+        }))
+      );
+      if (insertError) {
+        req.log.error(insertError);
+        return reply.code(500).send({ error: "Failed to update line items" });
+      }
+    }
+
+    await req.supabase.from("activity_log").insert({
+      organization_id: req.membership.organizationId,
+      invoice_id: invoiceId,
+      actor_id: req.user.userId,
+      action: "INVOICE_EDITED",
+    });
+
+    return reply.send({ ...updated, lineItems: computedLineItems });
   });
 
   // POST /orgs/:orgId/invoices/:invoiceId/transition
