@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import authPlugin from "./plugins/auth";
 import tenantPlugin from "./plugins/tenant";
 import orgRoutes from "./routes/orgs";
+import invoiceRoutes from "./routes/invoices";
 
 export function buildApp(opts: { logger?: boolean } = {}) {
   const app = Fastify({ logger: opts.logger ?? true });
@@ -11,6 +12,7 @@ export function buildApp(opts: { logger?: boolean } = {}) {
   app.register(authPlugin);
   app.register(tenantPlugin);
   app.register(orgRoutes);
+  app.register(invoiceRoutes);
 
   app.get("/health", async () => ({ ok: true }));
 
