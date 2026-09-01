@@ -78,3 +78,5 @@ coverage/
 
 PLAN.md 
 SCHEMA.md 
+
+.env.example
