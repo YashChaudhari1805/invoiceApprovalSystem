@@ -1,7 +1,7 @@
 import fp from "fastify-plugin";
 import { FastifyReply, FastifyRequest } from "fastify";
 import { SupabaseClient } from "@supabase/supabase-js";
-import { supabaseAdmin, createUserClient } from "../lib/supabase";
+import { getSupabaseAdmin, createUserClient } from "../lib/supabase";
 
 export interface AuthUser {
   userId: string;
@@ -35,7 +35,7 @@ export default fp(async (app) => {
       // Verifying via supabaseAdmin.auth.getUser confirms the token is a
       // genuine, unexpired Supabase-issued token for a real user — this is
       // the only thing the admin client is used for on this request.
-      const { data, error } = await supabaseAdmin.auth.getUser(token);
+      const { data, error } = await getSupabaseAdmin().auth.getUser(token);
       if (error || !data.user) {
         reply.code(401).send({ error: "Invalid or expired token" });
         return;

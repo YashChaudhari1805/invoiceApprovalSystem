@@ -10,11 +10,8 @@
 
 import { describe, it, expect, beforeAll } from "vitest";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import * as dotenv from "dotenv";
-// Path is relative to process.cwd(), which is apps/api when run via
-// `npm run test:integration` from the workspace — the root .env lives two
-// levels up from there.
-dotenv.config({ path: "../../.env" });
+// env vars are loaded by test/setup.ts (see vitest.config.ts's setupFiles)
+// before this file is imported
 
 const url = process.env.SUPABASE_URL!;
 const anonKey = process.env.SUPABASE_ANON_KEY!;
