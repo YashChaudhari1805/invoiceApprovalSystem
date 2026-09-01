@@ -1,79 +1,9 @@
-/node_modules
-/.pnpm-store
-/.yarn/*
-!/.yarn/patches
-!/.yarn/plugins
-!/.yarn/releases
-!/.yarn/sdks
-!/.yarn/versions
-pnpm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-npm-debug.log*
-
-# Python / FastAPI
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-.venv/
-pip-log.txt
-pip-delete-this-directory.txt
-.pytest_cache/
-.coverage
-htmlcov/
-.mypy_cache/
-.ruff_cache/
-
-# Next.js / React
-/.next/
-/out/
-/build
-/dist
-
-# TypeScript
-*.tsbuildinfo
-
+node_modules/
 .env
-.env*.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env.example
-!.env.template
-
-# Prisma
-/prisma/*.db
-/prisma/*.db-journal
-
-# Supabase
-/supabase/.temp/
-.supabase/
-
-# Windows
-Thumbs.db
-Desktop.ini
-
-# Editors / IDEs
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-.idea/
-*.sw?
-
-logs
+.env.local
+dist/
+build/
+.next/
+supabase/.temp/
 *.log
-coverage/
-.nyc_output/
-.vercel
-.turbo
-
-.env.example
+.DS_Store

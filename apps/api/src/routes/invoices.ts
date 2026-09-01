@@ -1,6 +1,6 @@
 import { FastifyInstance } from "fastify";
 import { computeInvoiceTotals, can } from "../lib/invoice-rules";
-import { createInvoiceSchema, listQuerySchema } from "../modules/invoices/schemas";
+import { createInvoiceSchema, listQuerySchema, transitionSchema } from "../modules/invoices/schemas";
 
 export default async function invoiceRoutes(app: FastifyInstance) {
   const preHandler = [app.authenticate, app.requireMembership];
@@ -110,5 +110,100 @@ export default async function invoiceRoutes(app: FastifyInstance) {
     }
 
     return reply.send({ items: data, total: count, page, pageSize });
+  });
+
+  // GET /orgs/:orgId/invoices/:invoiceId
+  // Returns invoice info, line items, activity history, and which actions
+  // the frontend should show for this user — but that action list is purely
+  // a UX convenience. The transition endpoint below re-checks everything
+  // from scratch, so a stale or tampered action list can't grant real access.
+  app.get("/orgs/:orgId/invoices/:invoiceId", { preHandler }, async (req, reply) => {
+    const { invoiceId } = req.params as { invoiceId: string };
+
+    const { data: invoice, error: invoiceError } = await req.supabase
+      .from("invoices")
+      .select("*")
+      .eq("id", invoiceId)
+      .eq("organization_id", req.membership.organizationId)
+      .maybeSingle();
+
+    if (invoiceError) {
+      req.log.error(invoiceError);
+      return reply.code(500).send({ error: "Failed to load invoice" });
+    }
+    if (!invoice) {
+      // Covers both "doesn't exist" and "belongs to another org" — RLS
+      // already guarantees the latter returns no row rather than someone
+      // else's data, so this 404 is safe either way.
+      return reply.code(404).send({ error: "Invoice not found" });
+    }
+
+    const [{ data: lineItems, error: lineItemsError }, { data: activity, error: activityError }] =
+      await Promise.all([
+        req.supabase.from("line_items").select("*").eq("invoice_id", invoiceId),
+        req.supabase
+          .from("activity_log")
+          .select("id, action, metadata, created_at, actor:profiles(id, name)")
+          .eq("invoice_id", invoiceId)
+          .order("created_at", { ascending: true }),
+      ]);
+
+    if (lineItemsError || activityError) {
+      req.log.error(lineItemsError ?? activityError);
+      return reply.code(500).send({ error: "Failed to load invoice details" });
+    }
+
+    const availableActions: string[] = [];
+    if (invoice.status === "DRAFT" && can(req.membership.role, "invoice:create")) {
+      availableActions.push("SUBMIT_FOR_REVIEW");
+    }
+    if (
+      invoice.status === "REVIEW" &&
+      can(req.membership.role, "invoice:approve") &&
+      invoice.created_by !== req.user.userId // maker-checker reflected in the UI hint too
+    ) {
+      availableActions.push("APPROVE", "REJECT");
+    }
+
+    return reply.send({ ...invoice, lineItems, activity, availableActions });
+  });
+
+  // POST /orgs/:orgId/invoices/:invoiceId/transition
+  // Thin wrapper around the transition_invoice() Postgres function, which is
+  // the single source of truth for the transition whitelist and the
+  // maker-checker rule (see supabase/migrations/0001_init.sql). This route's
+  // only job is validating the input shape and translating Postgres errors
+  // into sensible HTTP status codes.
+  app.post("/orgs/:orgId/invoices/:invoiceId/transition", { preHandler }, async (req, reply) => {
+    const { invoiceId } = req.params as { invoiceId: string };
+    const parsed = transitionSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "Invalid input", details: parsed.error.flatten() });
+    }
+
+    const { data, error } = await req.supabase.rpc("transition_invoice", {
+      p_invoice_id: invoiceId,
+      p_to_status: parsed.data.toStatus,
+    });
+
+    if (error) {
+      const message = error.message ?? "";
+      if (error.code === "42501") {
+        return reply.code(403).send({ error: "Forbidden" });
+      }
+      if (/not found/i.test(message)) {
+        return reply.code(404).send({ error: "Invoice not found" });
+      }
+      if (/cannot approve or reject/i.test(message)) {
+        return reply.code(403).send({ error: message });
+      }
+      if (/invalid status transition/i.test(message)) {
+        return reply.code(400).send({ error: message });
+      }
+      req.log.error(error);
+      return reply.code(500).send({ error: "Failed to update invoice status" });
+    }
+
+    return reply.send(data);
   });
 }
