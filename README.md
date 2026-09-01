@@ -38,6 +38,17 @@ npm run dev:api
 
 Frontend (`apps/web`) is not scaffolded yet — `npx create-next-app@latest apps/web --typescript --tailwind --app` and wire it to the API.
 
+## Testing
+
+Two layers, both in `apps/api/test/`:
+
+- **Unit tests** (`test/unit/`) — pure functions only (status transitions, permission table, maker-checker predicate, total calculation). No DB, no network, run in milliseconds: `npm run test:unit -w apps/api`
+- **Integration tests** (`test/integration/`) — hit your real Supabase project as the actual seeded users (Rahul, Priya), verifying RLS policies and the `transition_invoice` RPC directly. These are what actually prove tenant isolation and maker-checker can't be bypassed, independent of whether the Fastify route code has a bug: `npm run test:integration -w apps/api`
+
+Requires `.env` at the repo root with `SUPABASE_URL` and `SUPABASE_ANON_KEY`, and the seed data from `npm run seed` already applied. Run both: `npm run test -w apps/api`.
+
+As you add Fastify routes on top of this, keep writing tests at the layer where the rule actually lives — a new business rule goes in `lib/invoice-rules.ts` + a unit test; a new access-control rule goes in an RLS policy or the RPC function + an integration test. Route handlers themselves should stay thin enough not to need much testing beyond "does it call the right thing and map errors to the right status code."
+
 ## Build order (matches how the pieces depend on each other)
 
 1. **Auth + org switching** — login, JWT issue/verify, "which orgs am I a

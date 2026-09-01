@@ -54,7 +54,8 @@ model Organization {
   invoices    Invoice[]
 }
 
-// Scope user's role to a single organization
+// A user's role is scoped to a single organization via this join table.
+// This is the entire multi-tenancy + RBAC backbone.
 model Membership {
   id             String   @id @default(cuid())
   userId         String
@@ -82,7 +83,7 @@ model Invoice {
   totalAmount   Decimal @db.Decimal(14, 2)
 
   createdById String
-  approvedById String? // who approved/rejected it
+  approvedById String? // who approved/rejected it (never == createdById, enforced in code)
 
   createdAt DateTime @updatedAt @default(now())
   updatedAt DateTime @updatedAt
@@ -93,6 +94,7 @@ model Invoice {
   activities   ActivityLog[]
 
   // This is what makes the duplicate-invoice rule race-condition-safe:
+  // a DB-level constraint, not just an application-level check.
   @@unique([organizationId, vendor, invoiceNumber])
   @@index([organizationId, status])
   @@index([organizationId, vendor])

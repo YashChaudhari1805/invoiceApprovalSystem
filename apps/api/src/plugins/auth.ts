@@ -1,10 +1,8 @@
 import fp from "fastify-plugin";
-import fastifyJwt from "@fastify/jwt";
 import { FastifyReply, FastifyRequest } from "fastify";
+import { SupabaseClient } from "@supabase/supabase-js";
+import { supabaseAdmin, createUserClient } from "../lib/supabase";
 
-// What we put in the JWT: just identity. Org + role are resolved per-request
-// from the DB (see tenant.ts), never trusted from the token itself — that's
-// what stops someone from forging a role by editing a cached token.
 export interface AuthUser {
   userId: string;
   email: string;
@@ -16,23 +14,35 @@ declare module "fastify" {
   }
   interface FastifyRequest {
     user: AuthUser;
+    // A Supabase client authenticated as this specific user — every query
+    // made through it is subject to RLS. Route handlers should use this,
+    // not supabaseAdmin, for anything that reads or writes tenant data.
+    supabase: SupabaseClient;
   }
 }
 
 export default fp(async (app) => {
-  app.register(fastifyJwt, {
-    secret: process.env.JWT_SECRET as string,
-    cookie: { cookieName: "token", signed: false },
-  });
-
   app.decorate(
     "authenticate",
     async function (req: FastifyRequest, reply: FastifyReply) {
-      try {
-        await req.jwtVerify();
-      } catch {
-        reply.code(401).send({ error: "Unauthorized" });
+      const header = req.headers.authorization;
+      if (!header?.startsWith("Bearer ")) {
+        reply.code(401).send({ error: "Missing bearer token" });
+        return;
       }
+      const token = header.slice("Bearer ".length);
+
+      // Verifying via supabaseAdmin.auth.getUser confirms the token is a
+      // genuine, unexpired Supabase-issued token for a real user — this is
+      // the only thing the admin client is used for on this request.
+      const { data, error } = await supabaseAdmin.auth.getUser(token);
+      if (error || !data.user) {
+        reply.code(401).send({ error: "Invalid or expired token" });
+        return;
+      }
+
+      req.user = { userId: data.user.id, email: data.user.email! };
+      req.supabase = createUserClient(token);
     }
   );
 });
