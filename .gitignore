@@ -45,7 +45,7 @@ htmlcov/
 .env.development.local
 .env.test.local
 .env.production.local
-!.env.example
+.env.example
 !.env.template
 
 # Prisma
@@ -75,8 +75,5 @@ coverage/
 .nyc_output/
 .vercel
 .turbo
-
-PLAN.md 
-SCHEMA.md 
 
 .env.example
