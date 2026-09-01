@@ -1,0 +1,127 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  OPERATOR
+  REVIEWER
+  VIEWER
+}
+
+enum InvoiceStatus {
+  DRAFT
+  REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum ActivityAction {
+  INVOICE_CREATED
+  INVOICE_EDITED
+  INVOICE_SUBMITTED
+  INVOICE_APPROVED
+  INVOICE_REJECTED
+  MEMBER_ADDED
+  MEMBER_REMOVED
+  MEMBER_ROLE_CHANGED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  memberships    Membership[]
+  invoicesCreated Invoice[]      @relation("InvoiceCreator")
+  activities     ActivityLog[]
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
+  memberships Membership[]
+  invoices    Invoice[]
+}
+
+// Scope user's role to a single organization
+model Membership {
+  id             String   @id @default(cuid())
+  userId         String
+  organizationId String
+  role           Role
+  createdAt      DateTime @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId]) // one role per user per org
+  @@index([organizationId])
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  organizationId String
+  vendor         String
+  invoiceNumber  String
+  invoiceDate    DateTime
+  status         InvoiceStatus @default(DRAFT)
+
+  taxableAmount Decimal @db.Decimal(14, 2)
+  taxAmount     Decimal @db.Decimal(14, 2)
+  totalAmount   Decimal @db.Decimal(14, 2)
+
+  createdById String
+  approvedById String? // who approved/rejected it
+
+  createdAt DateTime @updatedAt @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  createdBy    User         @relation("InvoiceCreator", fields: [createdById], references: [id])
+  lineItems    LineItem[]
+  activities   ActivityLog[]
+
+  // This is what makes the duplicate-invoice rule race-condition-safe:
+  @@unique([organizationId, vendor, invoiceNumber])
+  @@index([organizationId, status])
+  @@index([organizationId, vendor])
+}
+
+model LineItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Decimal @db.Decimal(12, 2)
+  rate        Decimal @db.Decimal(12, 2)
+  taxRate     Decimal @db.Decimal(5, 2)
+  amount      Decimal @db.Decimal(14, 2) // server-computed, never trusted from client
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+}
+
+model ActivityLog {
+  id        String         @id @default(cuid())
+  invoiceId String?
+  organizationId String
+  actorId   String
+  action    ActivityAction
+  metadata  Json? // e.g. { from: "REVIEW", to: "APPROVED" }
+  createdAt DateTime       @default(now())
+
+  invoice Invoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  actor   User     @relation(fields: [actorId], references: [id])
+
+  @@index([organizationId, createdAt])
+  @@index([invoiceId])
+}
