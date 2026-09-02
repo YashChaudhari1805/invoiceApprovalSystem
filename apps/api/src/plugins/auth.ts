@@ -1,7 +1,7 @@
 import fp from "fastify-plugin";
 import { FastifyReply, FastifyRequest } from "fastify";
 import { SupabaseClient } from "@supabase/supabase-js";
-import { getSupabaseAdmin, createUserClient } from "../lib/supabase";
+import { verifyAccessToken, createUserClient } from "../lib/supabase";
 
 export interface AuthUser {
   userId: string;
@@ -32,16 +32,17 @@ export default fp(async (app) => {
       }
       const token = header.slice("Bearer ".length);
 
-      // Verifying via supabaseAdmin.auth.getUser confirms the token is a
-      // genuine, unexpired Supabase-issued token for a real user — this is
-      // the only thing the admin client is used for on this request.
-      const { data, error } = await getSupabaseAdmin().auth.getUser(token);
-      if (error || !data.user) {
+      try {
+        // Verified locally against Supabase's cached public JWKS keys — no
+        // network round trip to the Auth API on every request. See
+        // verifyAccessToken's comment in lib/supabase.ts.
+        req.user = await verifyAccessToken(token);
+      } catch (err) {
+        req.log.warn({ err }, "token verification failed");
         reply.code(401).send({ error: "Invalid or expired token" });
         return;
       }
 
-      req.user = { userId: data.user.id, email: data.user.email! };
       req.supabase = createUserClient(token);
     }
   );

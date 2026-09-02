@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { createRemoteJWKSet, jwtVerify } from "jose";
 
 // Deliberately lazy: env vars are read the first time a client is actually
 // needed (inside a request), not at module import time. This matters because
@@ -14,9 +15,10 @@ function requireEnv(name: string): string {
 
 let _supabaseAdmin: SupabaseClient | null = null;
 
-// Service-role client: bypasses RLS entirely. Used ONLY for verifying a
-// user's access token (auth.getUser) — never for reading/writing tenant data,
-// so a bug here can't accidentally leak across organizations.
+// Service-role client: bypasses RLS entirely. Kept around for the handful of
+// operations that genuinely need elevated access (e.g. looking up a user by
+// email when adding them to an org) — no longer used for routine token
+// verification, see verifyAccessToken below.
 export function getSupabaseAdmin(): SupabaseClient {
   if (!_supabaseAdmin) {
     _supabaseAdmin = createClient(requireEnv("SUPABASE_URL"), requireEnv("SUPABASE_SERVICE_ROLE_KEY"), {
@@ -24,6 +26,35 @@ export function getSupabaseAdmin(): SupabaseClient {
     });
   }
   return _supabaseAdmin;
+}
+
+export interface VerifiedUser {
+  userId: string;
+  email: string;
+}
+
+// Lazily created on first use, same reasoning as getSupabaseAdmin above.
+// createRemoteJWKSet fetches Supabase's public signing keys and caches them
+// in memory (with automatic refresh if a token references a key id it
+// doesn't recognize yet, e.g. after key rotation) — so this still avoids a
+// network round trip on every request, unlike calling
+// supabaseAdmin.auth.getUser(token) would.
+let _jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
+function getJwks() {
+  if (!_jwks) {
+    _jwks = createRemoteJWKSet(new URL(`${requireEnv("SUPABASE_URL")}/auth/v1/.well-known/jwks.json`));
+  }
+  return _jwks;
+}
+
+// Verifies a Supabase-issued access token LOCALLY against Supabase's public
+// signing keys (JWKS) — no network call to the Auth API's /user endpoint for
+// every single request. This project uses Supabase's newer asymmetric JWT
+// signing keys (ES256/RS256), so verification needs the public key from
+// JWKS rather than a single shared HS256 secret.
+export async function verifyAccessToken(token: string): Promise<VerifiedUser> {
+  const { payload } = await jwtVerify(token, getJwks());
+  return { userId: payload.sub as string, email: payload.email as string };
 }
 
 // Per-request client, authenticated as the calling user via their own access

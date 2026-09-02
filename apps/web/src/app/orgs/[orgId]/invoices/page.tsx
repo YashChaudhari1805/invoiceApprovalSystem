@@ -37,10 +37,6 @@ export default async function InvoiceListPage({
   } = await supabase.auth.getSession();
   if (!session) redirect("/login");
 
-  const { orgs } = (await apiFetch("/orgs", session.access_token)) as { orgs: Org[] };
-  const currentOrg = orgs.find((o) => o.id === params.orgId);
-  if (!currentOrg) redirect("/orgs"); // not a member of this org — bounce rather than 403 a page render
-
   const page = Number(searchParams.page ?? "1");
   const pageSize = 20;
   const query = new URLSearchParams({
@@ -51,10 +47,18 @@ export default async function InvoiceListPage({
     ...(searchParams.status ? { status: searchParams.status } : {}),
   });
 
-  const { items, total } = (await apiFetch(
-    `/orgs/${params.orgId}/invoices?${query.toString()}`,
-    session.access_token
-  )) as { items: InvoiceRow[]; total: number };
+  // These two calls are independent — fetched in parallel rather than
+  // serially to cut the page's network time roughly in half.
+  const [{ orgs }, { items, total }] = await Promise.all([
+    apiFetch("/orgs", session.access_token) as Promise<{ orgs: Org[] }>,
+    apiFetch(`/orgs/${params.orgId}/invoices?${query.toString()}`, session.access_token) as Promise<{
+      items: InvoiceRow[];
+      total: number;
+    }>,
+  ]);
+
+  const currentOrg = orgs.find((o) => o.id === params.orgId);
+  if (!currentOrg) redirect("/orgs"); // not a member of this org — bounce rather than 403 a page render
 
   const canCreate = currentOrg.role === "ADMIN" || currentOrg.role === "OPERATOR";
 

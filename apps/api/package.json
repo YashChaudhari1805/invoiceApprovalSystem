@@ -17,6 +17,7 @@
     "dotenv": "^16.4.5",
     "fastify": "^4.28.1",
     "fastify-plugin": "^4.5.1",
+    "jose": "^5.9.6",
     "zod": "^3.23.8"
   },
   "devDependencies": {
