@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import { buildApp } from "../../src/app";
+import { createTestOrg } from "../helpers/test-org";
 
 const url = process.env.SUPABASE_URL!;
 const anonKey = process.env.SUPABASE_ANON_KEY!;
@@ -15,8 +16,9 @@ async function loginAs(email: string) {
 const app = buildApp({ logger: false });
 let rahulToken: string;
 let priyaToken: string;
-let abcSteelId: string;
-let xyzMetalsId: string;
+let testOrgId: string;
+let xyzMetalsId: string; // real seeded org — used only for negative tests that never write data
+let cleanupTestOrg: () => Promise<void>;
 
 beforeAll(async () => {
   await app.ready();
@@ -25,17 +27,20 @@ beforeAll(async () => {
   rahulToken = rahul.token;
   priyaToken = priya.token;
 
+  const testOrg = await createTestOrg("invoices-create-list");
+  testOrgId = testOrg.orgId;
+  cleanupTestOrg = testOrg.cleanup;
+
   const res = await app.inject({
     method: "GET",
     url: "/orgs",
     headers: { authorization: `Bearer ${rahulToken}` },
   });
-  const orgs = res.json().orgs;
-  abcSteelId = orgs.find((o: any) => o.slug === "abc-steel").id;
-  xyzMetalsId = orgs.find((o: any) => o.slug === "xyz-metals").id;
+  xyzMetalsId = res.json().orgs.find((o: any) => o.slug === "xyz-metals").id;
 });
 
 afterAll(async () => {
+  await cleanupTestOrg();
   await app.close();
 });
 
@@ -53,7 +58,7 @@ describe("POST /orgs/:orgId/invoices", () => {
   it("rejects a request with no auth", async () => {
     const res = await app.inject({
       method: "POST",
-      url: `/orgs/${abcSteelId}/invoices`,
+      url: `/orgs/${testOrgId}/invoices`,
       payload: validInvoicePayload(),
     });
     expect(res.statusCode).toBe(401);
@@ -62,7 +67,7 @@ describe("POST /orgs/:orgId/invoices", () => {
   it("computes totals server-side, ignoring any amount the client might send", async () => {
     const res = await app.inject({
       method: "POST",
-      url: `/orgs/${abcSteelId}/invoices`,
+      url: `/orgs/${testOrgId}/invoices`,
       headers: { authorization: `Bearer ${rahulToken}` },
       payload: validInvoicePayload(),
     });
@@ -77,7 +82,7 @@ describe("POST /orgs/:orgId/invoices", () => {
   it("rejects invalid input (missing line items) with 400", async () => {
     const res = await app.inject({
       method: "POST",
-      url: `/orgs/${abcSteelId}/invoices`,
+      url: `/orgs/${testOrgId}/invoices`,
       headers: { authorization: `Bearer ${rahulToken}` },
       payload: validInvoicePayload({ lineItems: [] }),
     });
@@ -98,7 +103,7 @@ describe("POST /orgs/:orgId/invoices", () => {
     const payload = validInvoicePayload();
     const first = await app.inject({
       method: "POST",
-      url: `/orgs/${abcSteelId}/invoices`,
+      url: `/orgs/${testOrgId}/invoices`,
       headers: { authorization: `Bearer ${rahulToken}` },
       payload,
     });
@@ -106,7 +111,7 @@ describe("POST /orgs/:orgId/invoices", () => {
 
     const second = await app.inject({
       method: "POST",
-      url: `/orgs/${abcSteelId}/invoices`,
+      url: `/orgs/${testOrgId}/invoices`,
       headers: { authorization: `Bearer ${rahulToken}` },
       payload, // identical vendor + invoiceNumber
     });
@@ -118,7 +123,7 @@ describe("GET /orgs/:orgId/invoices", () => {
   it("returns invoices scoped to the org, paginated", async () => {
     const res = await app.inject({
       method: "GET",
-      url: `/orgs/${abcSteelId}/invoices?page=1&pageSize=5`,
+      url: `/orgs/${testOrgId}/invoices?page=1&pageSize=5`,
       headers: { authorization: `Bearer ${rahulToken}` },
     });
     expect(res.statusCode).toBe(200);
@@ -131,7 +136,7 @@ describe("GET /orgs/:orgId/invoices", () => {
   it("filters by status", async () => {
     const res = await app.inject({
       method: "GET",
-      url: `/orgs/${abcSteelId}/invoices?status=DRAFT`,
+      url: `/orgs/${testOrgId}/invoices?status=DRAFT`,
       headers: { authorization: `Bearer ${rahulToken}` },
     });
     expect(res.statusCode).toBe(200);

@@ -8,8 +8,9 @@
 // Requires .env with SUPABASE_URL / SUPABASE_ANON_KEY and the seeded users
 // from `npm run seed` to exist. Run with: npx vitest run test/integration
 
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { createTestOrg } from "../helpers/test-org";
 // env vars are loaded by test/setup.ts (see vitest.config.ts's setupFiles)
 // before this file is imported
 
@@ -25,7 +26,7 @@ async function loginAs(email: string): Promise<SupabaseClient> {
 
 let rahul: SupabaseClient; // Admin @ ABC Steel, Viewer @ XYZ Metals
 let priya: SupabaseClient; // Reviewer @ ABC Steel
-let abcSteelId: string;
+let abcSteelId: string; // real seeded org — used only where nothing gets written
 let xyzMetalsId: string;
 
 beforeAll(async () => {
@@ -90,14 +91,20 @@ describe("role-scoped access", () => {
 
 describe("maker-checker + workflow (transition_invoice RPC)", () => {
   let invoiceId: string;
+  let testOrgId: string;
+  let cleanupTestOrg: () => Promise<void>;
   const invoiceNumber = `MK-TEST-${Date.now()}`;
 
   beforeAll(async () => {
+    const testOrg = await createTestOrg("maker-checker");
+    testOrgId = testOrg.orgId;
+    cleanupTestOrg = testOrg.cleanup;
+
     const rahulId = (await rahul.auth.getUser()).data.user!.id;
     const { data, error } = await rahul
       .from("invoices")
       .insert({
-        organization_id: abcSteelId,
+        organization_id: testOrgId,
         vendor: "Tata Metals",
         invoice_number: invoiceNumber,
         invoice_date: "2026-01-01",
@@ -117,6 +124,10 @@ describe("maker-checker + workflow (transition_invoice RPC)", () => {
       p_to_status: "REVIEW",
     });
     if (transErr) throw transErr;
+  });
+
+  afterAll(async () => {
+    await cleanupTestOrg();
   });
 
   it("blocks Rahul from approving his own invoice, even as Admin", async () => {
@@ -148,11 +159,24 @@ describe("maker-checker + workflow (transition_invoice RPC)", () => {
 });
 
 describe("duplicate invoice protection under concurrency", () => {
+  let testOrgId: string;
+  let cleanupTestOrg: () => Promise<void>;
+
+  beforeAll(async () => {
+    const testOrg = await createTestOrg("dup-protection");
+    testOrgId = testOrg.orgId;
+    cleanupTestOrg = testOrg.cleanup;
+  });
+
+  afterAll(async () => {
+    await cleanupTestOrg();
+  });
+
   it("only one of two simultaneous identical-invoice inserts succeeds", async () => {
     const rahulId = (await rahul.auth.getUser()).data.user!.id;
     const invoiceNumber = `DUP-TEST-${Date.now()}`;
     const payload = {
-      organization_id: abcSteelId,
+      organization_id: testOrgId,
       vendor: "Tata Metals",
       invoice_number: invoiceNumber,
       invoice_date: "2026-01-01",

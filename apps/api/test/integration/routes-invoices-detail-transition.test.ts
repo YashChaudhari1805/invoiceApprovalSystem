@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createClient } from "@supabase/supabase-js";
 import { buildApp } from "../../src/app";
+import { createTestOrg } from "../helpers/test-org";
 
 const url = process.env.SUPABASE_URL!;
 const anonKey = process.env.SUPABASE_ANON_KEY!;
@@ -15,7 +16,8 @@ async function loginAs(email: string) {
 const app = buildApp({ logger: false });
 let rahulToken: string;
 let priyaToken: string;
-let abcSteelId: string;
+let testOrgId: string;
+let cleanupTestOrg: () => Promise<void>;
 
 beforeAll(async () => {
   await app.ready();
@@ -24,22 +26,20 @@ beforeAll(async () => {
   rahulToken = rahul.token;
   priyaToken = priya.token;
 
-  const res = await app.inject({
-    method: "GET",
-    url: "/orgs",
-    headers: { authorization: `Bearer ${rahulToken}` },
-  });
-  abcSteelId = res.json().orgs.find((o: any) => o.slug === "abc-steel").id;
+  const testOrg = await createTestOrg("invoices-detail-transition");
+  testOrgId = testOrg.orgId;
+  cleanupTestOrg = testOrg.cleanup;
 });
 
 afterAll(async () => {
+  await cleanupTestOrg();
   await app.close();
 });
 
 async function createInvoiceAsRahul() {
   const res = await app.inject({
     method: "POST",
-    url: `/orgs/${abcSteelId}/invoices`,
+    url: `/orgs/${testOrgId}/invoices`,
     headers: { authorization: `Bearer ${rahulToken}` },
     payload: {
       vendor: "Detail Test Vendor",
@@ -57,7 +57,7 @@ describe("GET /orgs/:orgId/invoices/:invoiceId", () => {
     const invoiceId = await createInvoiceAsRahul();
     const res = await app.inject({
       method: "GET",
-      url: `/orgs/${abcSteelId}/invoices/${invoiceId}`,
+      url: `/orgs/${testOrgId}/invoices/${invoiceId}`,
       headers: { authorization: `Bearer ${rahulToken}` },
     });
     expect(res.statusCode).toBe(200);
@@ -72,7 +72,7 @@ describe("GET /orgs/:orgId/invoices/:invoiceId", () => {
     const invoiceId = await createInvoiceAsRahul();
     const res = await app.inject({
       method: "GET",
-      url: `/orgs/${abcSteelId}/invoices/${invoiceId}`,
+      url: `/orgs/${testOrgId}/invoices/${invoiceId}`,
       headers: { authorization: `Bearer ${rahulToken}` },
     });
     expect(res.json().availableActions).toContain("SUBMIT_FOR_REVIEW");
@@ -81,7 +81,7 @@ describe("GET /orgs/:orgId/invoices/:invoiceId", () => {
   it("returns 404 for a nonexistent invoice id", async () => {
     const res = await app.inject({
       method: "GET",
-      url: `/orgs/${abcSteelId}/invoices/00000000-0000-0000-0000-000000000000`,
+      url: `/orgs/${testOrgId}/invoices/00000000-0000-0000-0000-000000000000`,
       headers: { authorization: `Bearer ${rahulToken}` },
     });
     expect(res.statusCode).toBe(404);
@@ -93,7 +93,7 @@ describe("POST /orgs/:orgId/invoices/:invoiceId/transition", () => {
     const invoiceId = await createInvoiceAsRahul();
     const res = await app.inject({
       method: "POST",
-      url: `/orgs/${abcSteelId}/invoices/${invoiceId}/transition`,
+      url: `/orgs/${testOrgId}/invoices/${invoiceId}/transition`,
       headers: { authorization: `Bearer ${rahulToken}` },
       payload: { toStatus: "REVIEW" },
     });
@@ -105,7 +105,7 @@ describe("POST /orgs/:orgId/invoices/:invoiceId/transition", () => {
     const invoiceId = await createInvoiceAsRahul();
     const res = await app.inject({
       method: "POST",
-      url: `/orgs/${abcSteelId}/invoices/${invoiceId}/transition`,
+      url: `/orgs/${testOrgId}/invoices/${invoiceId}/transition`,
       headers: { authorization: `Bearer ${rahulToken}` },
       payload: { toStatus: "APPROVED" },
     });
@@ -116,14 +116,14 @@ describe("POST /orgs/:orgId/invoices/:invoiceId/transition", () => {
     const invoiceId = await createInvoiceAsRahul();
     await app.inject({
       method: "POST",
-      url: `/orgs/${abcSteelId}/invoices/${invoiceId}/transition`,
+      url: `/orgs/${testOrgId}/invoices/${invoiceId}/transition`,
       headers: { authorization: `Bearer ${rahulToken}` },
       payload: { toStatus: "REVIEW" },
     });
 
     const res = await app.inject({
       method: "POST",
-      url: `/orgs/${abcSteelId}/invoices/${invoiceId}/transition`,
+      url: `/orgs/${testOrgId}/invoices/${invoiceId}/transition`,
       headers: { authorization: `Bearer ${rahulToken}` },
       payload: { toStatus: "APPROVED" },
     });
@@ -134,14 +134,14 @@ describe("POST /orgs/:orgId/invoices/:invoiceId/transition", () => {
     const invoiceId = await createInvoiceAsRahul();
     await app.inject({
       method: "POST",
-      url: `/orgs/${abcSteelId}/invoices/${invoiceId}/transition`,
+      url: `/orgs/${testOrgId}/invoices/${invoiceId}/transition`,
       headers: { authorization: `Bearer ${rahulToken}` },
       payload: { toStatus: "REVIEW" },
     });
 
     const res = await app.inject({
       method: "POST",
-      url: `/orgs/${abcSteelId}/invoices/${invoiceId}/transition`,
+      url: `/orgs/${testOrgId}/invoices/${invoiceId}/transition`,
       headers: { authorization: `Bearer ${priyaToken}` },
       payload: { toStatus: "APPROVED" },
     });
@@ -153,7 +153,7 @@ describe("POST /orgs/:orgId/invoices/:invoiceId/transition", () => {
     const invoiceId = await createInvoiceAsRahul();
     const res = await app.inject({
       method: "POST",
-      url: `/orgs/${abcSteelId}/invoices/${invoiceId}/transition`,
+      url: `/orgs/${testOrgId}/invoices/${invoiceId}/transition`,
       headers: { authorization: `Bearer ${rahulToken}` },
       payload: { toStatus: "NOT_A_REAL_STATUS" },
     });

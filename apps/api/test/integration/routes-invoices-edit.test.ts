@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createClient } from "@supabase/supabase-js";
 import { buildApp } from "../../src/app";
+import { createTestOrg } from "../helpers/test-org";
 
 const url = process.env.SUPABASE_URL!;
 const anonKey = process.env.SUPABASE_ANON_KEY!;
@@ -13,9 +14,10 @@ async function loginAs(email: string) {
 }
 
 const app = buildApp({ logger: false });
-let rahulToken: string; // Admin @ ABC Steel
-let priyaToken: string; // Reviewer @ ABC Steel — cannot edit at all
-let abcSteelId: string;
+let rahulToken: string; // Admin @ test org
+let priyaToken: string; // Reviewer @ test org — cannot edit at all
+let testOrgId: string;
+let cleanupTestOrg: () => Promise<void>;
 
 beforeAll(async () => {
   await app.ready();
@@ -24,22 +26,20 @@ beforeAll(async () => {
   rahulToken = rahul.token;
   priyaToken = priya.token;
 
-  const res = await app.inject({
-    method: "GET",
-    url: "/orgs",
-    headers: { authorization: `Bearer ${rahulToken}` },
-  });
-  abcSteelId = res.json().orgs.find((o: any) => o.slug === "abc-steel").id;
+  const testOrg = await createTestOrg("invoices-edit");
+  testOrgId = testOrg.orgId;
+  cleanupTestOrg = testOrg.cleanup;
 });
 
 afterAll(async () => {
+  await cleanupTestOrg();
   await app.close();
 });
 
 async function createInvoiceAsRahul() {
   const res = await app.inject({
     method: "POST",
-    url: `/orgs/${abcSteelId}/invoices`,
+    url: `/orgs/${testOrgId}/invoices`,
     headers: { authorization: `Bearer ${rahulToken}` },
     payload: {
       vendor: "Edit Test Vendor",
@@ -54,7 +54,7 @@ async function createInvoiceAsRahul() {
 async function transition(invoiceId: string, toStatus: string, token: string) {
   return app.inject({
     method: "POST",
-    url: `/orgs/${abcSteelId}/invoices/${invoiceId}/transition`,
+    url: `/orgs/${testOrgId}/invoices/${invoiceId}/transition`,
     headers: { authorization: `Bearer ${token}` },
     payload: { toStatus },
   });
@@ -65,7 +65,7 @@ describe("PATCH /orgs/:orgId/invoices/:invoiceId", () => {
     const invoiceId = await createInvoiceAsRahul();
     const res = await app.inject({
       method: "PATCH",
-      url: `/orgs/${abcSteelId}/invoices/${invoiceId}`,
+      url: `/orgs/${testOrgId}/invoices/${invoiceId}`,
       headers: { authorization: `Bearer ${rahulToken}` },
       payload: {
         vendor: "Updated Vendor Name",
@@ -82,7 +82,7 @@ describe("PATCH /orgs/:orgId/invoices/:invoiceId", () => {
     const invoiceId = await createInvoiceAsRahul();
     const res = await app.inject({
       method: "PATCH",
-      url: `/orgs/${abcSteelId}/invoices/${invoiceId}`,
+      url: `/orgs/${testOrgId}/invoices/${invoiceId}`,
       headers: { authorization: `Bearer ${priyaToken}` },
       payload: { vendor: "Should Not Work" },
     });
@@ -96,7 +96,7 @@ describe("PATCH /orgs/:orgId/invoices/:invoiceId", () => {
 
     const res = await app.inject({
       method: "PATCH",
-      url: `/orgs/${abcSteelId}/invoices/${invoiceId}`,
+      url: `/orgs/${testOrgId}/invoices/${invoiceId}`,
       headers: { authorization: `Bearer ${rahulToken}` },
       payload: { vendor: "Post-Approval Admin Edit" },
     });
@@ -109,14 +109,14 @@ describe("PATCH /orgs/:orgId/invoices/:invoiceId", () => {
 
     const firstDetail = await app.inject({
       method: "GET",
-      url: `/orgs/${abcSteelId}/invoices/${firstId}`,
+      url: `/orgs/${testOrgId}/invoices/${firstId}`,
       headers: { authorization: `Bearer ${rahulToken}` },
     });
     const { vendor, invoice_number } = firstDetail.json();
 
     const res = await app.inject({
       method: "PATCH",
-      url: `/orgs/${abcSteelId}/invoices/${secondId}`,
+      url: `/orgs/${testOrgId}/invoices/${secondId}`,
       headers: { authorization: `Bearer ${rahulToken}` },
       payload: { vendor, invoiceNumber: invoice_number },
     });
@@ -127,14 +127,14 @@ describe("PATCH /orgs/:orgId/invoices/:invoiceId", () => {
     const invoiceId = await createInvoiceAsRahul();
     const res = await app.inject({
       method: "PATCH",
-      url: `/orgs/${abcSteelId}/invoices/${invoiceId}`,
+      url: `/orgs/${testOrgId}/invoices/${invoiceId}`,
       payload: { vendor: "Still Editable", status: "APPROVED" },
       headers: { authorization: `Bearer ${rahulToken}` },
     });
     expect(res.statusCode).toBe(200); // the vendor update succeeds
     const detail = await app.inject({
       method: "GET",
-      url: `/orgs/${abcSteelId}/invoices/${invoiceId}`,
+      url: `/orgs/${testOrgId}/invoices/${invoiceId}`,
       headers: { authorization: `Bearer ${rahulToken}` },
     });
     expect(detail.json().status).toBe("DRAFT"); // status was silently ignored, not changed

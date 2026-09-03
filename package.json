@@ -5,7 +5,8 @@
   "scripts": {
     "dev:api": "npm run dev -w apps/api",
     "dev:web": "npm run dev -w apps/web",
-    "seed": "tsx scripts/seed.ts"
+    "seed": "tsx scripts/seed.ts",
+    "cleanup:test-data": "tsx scripts/cleanup-test-data.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
