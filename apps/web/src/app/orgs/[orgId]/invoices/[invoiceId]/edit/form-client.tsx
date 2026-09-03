@@ -1,0 +1,129 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { LineItemsEditor, LineItemDraft } from "@/components/line-items-editor";
+import { updateInvoiceAction } from "../../actions";
+
+interface ExistingLineItem {
+  description: string;
+  quantity: string | number;
+  rate: string | number;
+  tax_rate: string | number;
+}
+
+export function EditInvoiceForm({
+  orgId,
+  invoiceId,
+  initialVendor,
+  initialInvoiceNumber,
+  initialInvoiceDate,
+  initialLineItems,
+}: {
+  orgId: string;
+  invoiceId: string;
+  initialVendor: string;
+  initialInvoiceNumber: string;
+  initialInvoiceDate: string;
+  initialLineItems: ExistingLineItem[];
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [vendor, setVendor] = useState(initialVendor);
+  const [invoiceNumber, setInvoiceNumber] = useState(initialInvoiceNumber);
+  const [invoiceDate, setInvoiceDate] = useState(initialInvoiceDate.slice(0, 10));
+  const [lineItems, setLineItems] = useState<LineItemDraft[]>(
+    initialLineItems.map((li) => ({
+      description: li.description,
+      quantity: String(li.quantity),
+      rate: String(li.rate),
+      taxRate: String(li.tax_rate),
+    }))
+  );
+  const [error, setError] = useState<string | null>(null);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+
+    const payload = {
+      vendor,
+      invoiceNumber,
+      invoiceDate,
+      lineItems: lineItems.map((li) => ({
+        description: li.description,
+        quantity: Number(li.quantity) || 0,
+        rate: Number(li.rate) || 0,
+        taxRate: Number(li.taxRate) || 0,
+      })),
+    };
+
+    startTransition(async () => {
+      const result = await updateInvoiceAction(orgId, invoiceId, payload);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      router.push(`/orgs/${orgId}/invoices/${invoiceId}`);
+    });
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-5">
+      <div className="grid grid-cols-3 gap-4">
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-ink-700">Vendor</label>
+          <input
+            required
+            value={vendor}
+            onChange={(e) => setVendor(e.target.value)}
+            className="w-full rounded-md border border-ink-100 bg-white px-3 py-2 text-sm outline-none transition focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
+          />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-ink-700">Invoice number</label>
+          <input
+            required
+            value={invoiceNumber}
+            onChange={(e) => setInvoiceNumber(e.target.value)}
+            className="w-full rounded-md border border-ink-100 bg-white px-3 py-2 text-sm outline-none transition focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
+          />
+        </div>
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-ink-700">Invoice date</label>
+          <input
+            required
+            type="date"
+            value={invoiceDate}
+            onChange={(e) => setInvoiceDate(e.target.value)}
+            className="w-full rounded-md border border-ink-100 bg-white px-3 py-2 text-sm outline-none transition focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-sm font-medium text-ink-700">Line items</label>
+        <LineItemsEditor items={lineItems} onChange={setLineItems} />
+      </div>
+
+      {error && <p className="rounded-md bg-rose-100 px-3 py-2 text-sm text-rose-600">{error}</p>}
+
+      <div className="flex items-center gap-3">
+        <button
+          type="submit"
+          disabled={isPending}
+          className="rounded-md bg-accent-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-700 disabled:opacity-50"
+        >
+          {isPending ? "Saving…" : "Save changes"}
+        </button>
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="text-sm font-medium text-ink-500 transition hover:text-ink-700"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
