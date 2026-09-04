@@ -1,11 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
-  const router = useRouter();
   const supabase = createClient();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,8 +23,11 @@ export default function LoginPage() {
       return;
     }
 
-    router.refresh();
-    router.push("/orgs");
+    // A hard navigation (not router.push) after sign-in, so the very next
+    // page load is a real request carrying the new session cookie — never
+    // served from Next's client-side Router Cache, which could otherwise
+    // reuse a previous user's cached page for the same URL in this tab.
+    window.location.href = "/orgs";
   }
 
   return (

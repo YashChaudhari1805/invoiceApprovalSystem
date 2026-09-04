@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -26,7 +26,6 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const supabase = createClient();
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const currentOrg = orgs.find((o) => o.id === currentOrgId);
@@ -39,8 +38,10 @@ export function AppShell({
 
   async function handleSignOut() {
     await supabase.auth.signOut();
-    router.refresh();
-    router.push("/login");
+    // Hard navigation, same reasoning as the login page: guarantees the
+    // next request is a real fetch with the cleared session, never a
+    // Router-Cache hit that could show the previous user's page.
+    window.location.href = "/login";
   }
 
   return (
