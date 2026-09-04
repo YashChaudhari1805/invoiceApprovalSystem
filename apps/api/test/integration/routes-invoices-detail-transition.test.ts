@@ -86,6 +86,40 @@ describe("GET /orgs/:orgId/invoices/:invoiceId", () => {
     });
     expect(res.statusCode).toBe(404);
   });
+
+  it("includes the creator's name", async () => {
+    const invoiceId = await createInvoiceAsRahul();
+    const res = await app.inject({
+      method: "GET",
+      url: `/orgs/${testOrgId}/invoices/${invoiceId}`,
+      headers: { authorization: `Bearer ${rahulToken}` },
+    });
+    expect(res.json().creator.name).toBe("Rahul");
+  });
+});
+
+describe("GET /orgs/:orgId/activity", () => {
+  it("lists org-wide activity including who performed each action", async () => {
+    const invoiceId = await createInvoiceAsRahul();
+    const res = await app.inject({
+      method: "GET",
+      url: `/orgs/${testOrgId}/activity`,
+      headers: { authorization: `Bearer ${rahulToken}` },
+    });
+    expect(res.statusCode).toBe(200);
+    const created = res.json().activity.find((a: any) => a.invoice?.id === invoiceId);
+    expect(created.action).toBe("INVOICE_CREATED");
+    expect(created.actor.name).toBe("Rahul");
+  });
+
+  it("a user with no membership in the org gets 403", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `/orgs/00000000-0000-0000-0000-000000000000/activity`,
+      headers: { authorization: `Bearer ${rahulToken}` },
+    });
+    expect(res.statusCode).toBe(403);
+  });
 });
 
 describe("POST /orgs/:orgId/invoices/:invoiceId/transition", () => {

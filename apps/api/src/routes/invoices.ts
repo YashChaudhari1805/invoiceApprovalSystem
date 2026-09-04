@@ -127,7 +127,9 @@ export default async function invoiceRoutes(app: FastifyInstance) {
 
     const { data: invoice, error: invoiceError } = await req.supabase
       .from("invoices")
-      .select("*")
+      .select(
+        "*, creator:profiles!invoices_created_by_fkey(id, name, email), approver:profiles!invoices_approved_by_fkey(id, name, email)"
+      )
       .eq("id", invoiceId)
       .eq("organization_id", req.membership.organizationId)
       .maybeSingle();
@@ -311,5 +313,24 @@ export default async function invoiceRoutes(app: FastifyInstance) {
     }
 
     return reply.send(data);
+  });
+
+  // GET /orgs/:orgId/activity — org-wide audit trail covering both invoice
+  // events and membership events (role changes, adds, removes), per spec
+  // section 11. Invoice-scoped activity already appears on each invoice's
+  // detail page; this is the org-level view tying it all together in one place.
+  app.get("/orgs/:orgId/activity", { preHandler }, async (req, reply) => {
+    const { data, error } = await req.supabase
+      .from("activity_log")
+      .select("id, action, metadata, created_at, actor:profiles(id, name), invoice:invoices(id, invoice_number)")
+      .eq("organization_id", req.membership.organizationId)
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    if (error) {
+      req.log.error(error);
+      return reply.code(500).send({ error: "Failed to load activity" });
+    }
+    return reply.send({ activity: data });
   });
 }

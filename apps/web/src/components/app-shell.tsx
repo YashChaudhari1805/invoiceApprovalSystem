@@ -33,6 +33,7 @@ export function AppShell({
 
   const navItems = [
     { href: `/orgs/${currentOrgId}/invoices`, label: "Invoices" },
+    { href: `/orgs/${currentOrgId}/activity`, label: "Activity" },
     ...(currentRole === "ADMIN" ? [{ href: `/orgs/${currentOrgId}/members`, label: "Members" }] : []),
   ];
 

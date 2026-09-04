@@ -40,6 +40,8 @@ interface InvoiceDetail {
   total_amount: string | number;
   created_by: string;
   created_at: string;
+  creator: { id: string; name: string; email: string } | null;
+  approver: { id: string; name: string; email: string } | null;
   lineItems: LineItem[];
   activity: ActivityEntry[];
   availableActions: string[];
@@ -116,7 +118,11 @@ export default async function InvoiceDetailPage({
         </div>
       )}
 
-      <div className="mb-6 grid grid-cols-3 gap-4 rounded-lg border border-ink-100 bg-white p-4 text-sm">
+      <div className="mb-6 grid grid-cols-4 gap-4 rounded-lg border border-ink-100 bg-white p-4 text-sm">
+        <div>
+          <p className="text-ink-500">Created by</p>
+          <p className="mt-0.5 font-medium text-ink-900">{invoice.creator?.name ?? "Unknown"}</p>
+        </div>
         <div>
           <p className="text-ink-500">Invoice date</p>
           <p className="mt-0.5 font-medium text-ink-900">
