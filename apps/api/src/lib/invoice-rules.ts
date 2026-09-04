@@ -32,10 +32,10 @@ export function can(role: Role, permission: keyof typeof PERMISSIONS): boolean {
 }
 
 export interface LineItemInput {
-  description: string;  
+  description: string;
   quantity: number;
   rate: number;
-  taxRate: number;
+  taxRate: number; // percentage, e.g. 18 for 18%
 }
 
 export interface ComputedLineItem extends LineItemInput {

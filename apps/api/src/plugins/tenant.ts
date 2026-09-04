@@ -58,6 +58,7 @@ export function requirePermission(permission: Parameters<typeof can>[1]) {
   return async (req: FastifyRequest, reply: FastifyReply) => {
     if (!can(req.membership.role, permission)) {
       reply.code(403).send({ error: "Forbidden" });
+      return;
     }
   };
 }

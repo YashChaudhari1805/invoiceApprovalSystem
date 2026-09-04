@@ -158,7 +158,55 @@ describe("maker-checker + workflow (transition_invoice RPC)", () => {
   });
 });
 
-describe("duplicate invoice protection under concurrency", () => {
+describe("self-membership protection (RLS)", () => {
+  let testOrgId: string;
+  let cleanupTestOrg: () => Promise<void>;
+
+  beforeAll(async () => {
+    const testOrg = await createTestOrg("self-membership");
+    testOrgId = testOrg.orgId;
+    cleanupTestOrg = testOrg.cleanup;
+  });
+
+  afterAll(async () => {
+    await cleanupTestOrg();
+  });
+
+  it("blocks an Admin from updating their own membership row directly, bypassing the API entirely", async () => {
+    const rahulId = (await rahul.auth.getUser()).data.user!.id;
+    const { error } = await rahul
+      .from("memberships")
+      .update({ role: "VIEWER" })
+      .eq("organization_id", testOrgId)
+      .eq("user_id", rahulId);
+    // RLS silently matches zero rows rather than erroring, so we confirm by
+    // re-reading rather than relying on `error` alone.
+    expect(error).toBeNull();
+
+    const { data } = await rahul
+      .from("memberships")
+      .select("role")
+      .eq("organization_id", testOrgId)
+      .eq("user_id", rahulId)
+      .single();
+    expect(data!.role).toBe("ADMIN");
+  });
+
+  it("blocks an Admin from deleting their own membership row directly", async () => {
+    const rahulId = (await rahul.auth.getUser()).data.user!.id;
+    await rahul.from("memberships").delete().eq("organization_id", testOrgId).eq("user_id", rahulId);
+
+    const { data } = await rahul
+      .from("memberships")
+      .select("role")
+      .eq("organization_id", testOrgId)
+      .eq("user_id", rahulId)
+      .single();
+    expect(data).not.toBeNull(); // still there
+  });
+});
+
+describe("duplicate protection", () => {
   let testOrgId: string;
   let cleanupTestOrg: () => Promise<void>;
 

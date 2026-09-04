@@ -1,9 +1,33 @@
 node_modules/
+.pnpm-store/
+
+# Env files - NEVER commit the real .env, always keep .env.example
 .env
 .env.local
-dist/
-build/
+.env.*.local
+!.env.example
+
+# Next.js / build output
 .next/
+out/
+build/
+dist/
+*.tsbuildinfo
+
+# Supabase local state
 supabase/.temp/
-*.log
+.supabase/
+
+# Test artifacts
+coverage/
+.nyc_output/
+
+# Editors / OS
+.vscode/*
+!.vscode/settings.json
+.idea/
 .DS_Store
+Thumbs.db
+
+*.log
+npm-debug.log*

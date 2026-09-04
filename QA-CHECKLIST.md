@@ -19,8 +19,9 @@ Run through this as the actual UI, not curl/Postman — the goal is catching any
 - [ ] (Optional, stronger check) Open browser dev tools → Network tab, try re-sending a transition request with `toStatus: "APPROVED"` manually. Expect a `403`.
 
 ## 3. Viewer attempting to edit
-- [ ] Log in as **Priya** — she's a Reviewer, not Viewer, but she also can't edit. Open any Draft invoice.
-- [ ] **Expect:** no Edit action available (once the edit UI exists — for now, confirm no edit affordance is shown anywhere on the detail page).
+- [ ] Log in as **Rahul** and switch to **XYZ Metals** via the sidebar — he's a Viewer there (unlike ABC Steel, where he's Admin).
+- [ ] Open any invoice in XYZ Metals.
+- [ ] **Expect:** no Edit link, no New Invoice button anywhere, no action buttons — Viewer is read-only everywhere.
 
 ## 4. Creator approving their own invoice (maker-checker)
 - [ ] As **Rahul**, create a new invoice in ABC Steel, submit it for review.

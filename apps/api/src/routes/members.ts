@@ -109,7 +109,7 @@ export default async function memberRoutes(app: FastifyInstance) {
 
     const { data: before, error: beforeError } = await req.supabase
       .from("memberships")
-      .select("role")
+      .select("role, user_id")
       .eq("id", membershipId)
       .eq("organization_id", req.membership.organizationId)
       .maybeSingle();
@@ -120,6 +120,15 @@ export default async function memberRoutes(app: FastifyInstance) {
     }
     if (!before) {
       return reply.code(404).send({ error: "Membership not found" });
+    }
+    // An Admin must not be able to change their own role — self-promotion
+    // isn't a real risk (they're already Admin), but self-demotion could
+    // leave an org with zero Admins, and either way this is exactly the
+    // "enforce on the backend, not just the frontend" case the spec warns
+    // about. The frontend disables this for the current user, but that's
+    // UX only — this check is what actually stops it.
+    if (before.user_id === req.user.userId) {
+      return reply.code(403).send({ error: "You cannot change your own role" });
     }
 
     const { data: updated, error: updateError } = await req.supabase
@@ -163,6 +172,12 @@ export default async function memberRoutes(app: FastifyInstance) {
     }
     if (!existing) {
       return reply.code(404).send({ error: "Membership not found" });
+    }
+    // Same reasoning as the PATCH handler above: an Admin removing their
+    // own membership could leave the org with zero Admins, and it's the
+    // same "backend must enforce this, not just hide the button" case.
+    if (existing.user_id === req.user.userId) {
+      return reply.code(403).send({ error: "You cannot remove yourself from the organization" });
     }
 
     const { error: deleteError } = await req.supabase.from("memberships").delete().eq("id", membershipId);

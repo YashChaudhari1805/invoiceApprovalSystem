@@ -139,9 +139,49 @@ describe("PATCH /orgs/:orgId/members/:membershipId", () => {
     // delete-and-recreate of the account.
     expect(res.json().user.id).toBe(tempUserId);
   });
+
+  it("Admin cannot change their own role, even via a direct request", async () => {
+    const listRes = await app.inject({
+      method: "GET",
+      url: `/orgs/${testOrgId}/members`,
+      headers: { authorization: `Bearer ${rahulToken}` },
+    });
+    const rahulMembership = listRes.json().members.find((m: any) => m.user.email === "rahul@example.com");
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/orgs/${testOrgId}/members/${rahulMembership.id}`,
+      headers: { authorization: `Bearer ${rahulToken}` },
+      payload: { role: "VIEWER" },
+    });
+    expect(res.statusCode).toBe(403);
+
+    // Confirm the role genuinely didn't change, not just that we got a 403.
+    const after = await app.inject({
+      method: "GET",
+      url: `/orgs/${testOrgId}/members`,
+      headers: { authorization: `Bearer ${rahulToken}` },
+    });
+    expect(after.json().members.find((m: any) => m.id === rahulMembership.id).role).toBe("ADMIN");
+  });
 });
 
 describe("DELETE /orgs/:orgId/members/:membershipId", () => {
+  it("Admin cannot remove themselves, even via a direct request", async () => {
+    const listRes = await app.inject({
+      method: "GET",
+      url: `/orgs/${testOrgId}/members`,
+      headers: { authorization: `Bearer ${rahulToken}` },
+    });
+    const rahulMembership = listRes.json().members.find((m: any) => m.user.email === "rahul@example.com");
+
+    const res = await app.inject({
+      method: "DELETE",
+      url: `/orgs/${testOrgId}/members/${rahulMembership.id}`,
+      headers: { authorization: `Bearer ${rahulToken}` },
+    });
+    expect(res.statusCode).toBe(403);
+  });
   it("Admin can remove the temp user from the org", async () => {
     const listRes = await app.inject({
       method: "GET",

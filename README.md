@@ -1,80 +1,117 @@
 # Multi-Tenant Invoice Approval System
 
-## What's in this starting point
+A working multi-tenant web application for creating, reviewing, and approving purchase invoices, with role-based permissions, a maker-checker approval rule, and full audit history.
 
-This is a scaffold, not a finished app — it gives you the parts that are
-hardest to get right and easiest to grade wrong:
+**Live demo:** _add your deployed URLs here once confirmed working_
+- Frontend: `https://<your-app>.vercel.app`
+- API: `https://<your-api>.onrender.com` (free tier — the first request after a period of inactivity may take 30-60s to wake up)
 
-- `prisma/schema.prisma` — full data model. `Membership` is the multi-tenancy
-  backbone (one role per user per org). The `(organizationId, vendor,
-  invoiceNumber)` unique constraint on `Invoice` makes duplicate protection
-  safe under concurrent requests at the database level, not just in app code.
-- `apps/api/src/plugins/auth.ts` — JWT verification.
-- `apps/api/src/plugins/tenant.ts` — re-derives the caller's org membership
-  from the DB on *every* request (never trusts a client-supplied org/role
-  claim), plus a declarative permission table.
-- `apps/api/src/modules/invoices/service.ts` — server-computed totals,
-  explicit status-transition whitelist, and the maker-checker rule
-  (creator can never approve/reject their own invoice).
-- `apps/api/src/modules/invoices/list.ts` — search/filter/pagination done
-  entirely in the DB query, never in the frontend.
-- `prisma/seed.ts` — sample data matching the assignment's example
-  (Rahul: Admin at ABC Steel / Viewer at XYZ Metals).
+## Tech stack
 
-## Note: this project now uses Supabase
+- **Frontend:** Next.js 14 (App Router) + React + TypeScript + Tailwind CSS
+- **Backend:** Node.js + Fastify + TypeScript
+- **Database & Auth:** Supabase (PostgreSQL + Row Level Security + Supabase Auth)
 
-`prisma/schema.prisma` and the JWT/bcrypt auth code in `apps/api/src/plugins/auth.ts` were the pre-Supabase version and are superseded — see `SCHEMA.md` and `supabase/migrations/0001_init.sql` for the current source of truth. Auth is now handled by Supabase Auth (no hand-rolled login/JWT code needed); the API verifies the Supabase-issued JWT instead of issuing its own. If you still want Prisma for typed app queries against the Supabase Postgres instance, run `prisma db pull` against it to generate a client from the real schema rather than hand-maintaining both.
+## Architecture at a glance
+
+Every org-scoped request passes through, in order: **authenticate** (verifies the Supabase-issued JWT locally against Supabase's public JWKS keys, no network round trip) -> **requireMembership** (re-derives the caller's role fresh from the database on every request, scoped by RLS) -> **requirePermission** (checks role against a static permission table) -> route-specific business logic (maker-checker, status transitions, etc.).
+
+Row Level Security policies in Postgres are a second, independent enforcement layer underneath the API -- even a bug in the Fastify layer can't leak data across tenants or bypass maker-checker, because the database itself refuses those operations. See `SCHEMA.md` for the full data model and `PLAN.md` for the original architecture writeup.
 
 ## Setup
 
+### 1. Create a Supabase project
+
+At [supabase.com](https://supabase.com), create a new project. Note your project reference, database password, and (from Project Settings > API) your Project URL, anon key, and service role key.
+
+### 2. Apply the database schema
+
 ```bash
-npm install
-cp .env.example .env   # fill in DATABASE_URL (Supabase or local Postgres) and JWT_SECRET
-npm run prisma:generate
-npm run prisma:migrate
-npm run prisma:seed
-npm run dev:api
+npm install -g supabase
+supabase login
+supabase link --project-ref <your-project-ref>
+supabase db push
 ```
 
-Frontend (`apps/web`) is not scaffolded yet — `npx create-next-app@latest apps/web --typescript --tailwind --app` and wire it to the API.
+This runs every migration in `supabase/migrations/` -- tables, RLS policies, and the `transition_invoice()` function.
+
+### 3. Configure environment variables
+
+Copy `.env.example` to `.env` in the repo root and fill in your Supabase values (used by the API and the seed/cleanup scripts):
+
+```bash
+cp .env.example .env
+```
+
+Then copy `apps/web/.env.example` to `apps/web/.env.local` and fill in the same Supabase URL/anon key, plus `API_URL` pointing at your locally-running API (`http://localhost:4000` by default):
+
+```bash
+cp apps/web/.env.example apps/web/.env.local
+```
+
+### 4. Install dependencies and seed data
+
+```bash
+npm install
+npm run seed
+```
+
+This creates two real Supabase Auth users (`rahul@example.com`, `priya@example.com`, both password `password123`) and two organizations, matching the assignment's example: Rahul is Admin at ABC Steel and Viewer at XYZ Metals; Priya is Reviewer at ABC Steel.
+
+### 5. Run it
+
+Two terminals:
+
+```bash
+npm run dev:api    # Fastify API on http://localhost:4000
+npm run dev:web    # Next.js frontend on http://localhost:3000
+```
+
+Visit `http://localhost:3000`, log in as either seeded user.
 
 ## Testing
 
-Two layers, both in `apps/api/test/`:
+```bash
+npm run test:unit -w apps/api          # pure business-rule tests, no DB, runs in ms
+npm run test:integration -w apps/api   # hits your real Supabase project as the seeded users
+```
 
-- **Unit tests** (`test/unit/`) — pure functions only (status transitions, permission table, maker-checker predicate, total calculation). No DB, no network, run in milliseconds: `npm run test:unit -w apps/api`
-- **Integration tests** (`test/integration/`) — hit your real Supabase project as the actual seeded users (Rahul, Priya), verifying RLS policies and the `transition_invoice` RPC directly. These are what actually prove tenant isolation and maker-checker can't be bypassed, independent of whether the Fastify route code has a bug: `npm run test:integration -w apps/api`
+The integration suite is the one worth reading if you want to see the security model actually exercised: it logs in as real users and asserts that cross-tenant access, maker-checker violations, invalid status transitions, and duplicate invoices are all rejected -- both through the API and, in several tests, by attempting the same operations directly against Supabase to confirm RLS enforces it independently of the API layer.
 
-Requires `.env` at the repo root with `SUPABASE_URL` and `SUPABASE_ANON_KEY`, and the seed data from `npm run seed` already applied. Run both: `npm run test -w apps/api`.
+Tests that create data run against disposable throwaway organizations (see `apps/api/test/helpers/test-org.ts`) created and torn down per test file, so running the suite never pollutes the real seed data.
 
-As you add Fastify routes on top of this, keep writing tests at the layer where the rule actually lives — a new business rule goes in `lib/invoice-rules.ts` + a unit test; a new access-control rule goes in an RLS policy or the RPC function + an integration test. Route handlers themselves should stay thin enough not to need much testing beyond "does it call the right thing and map errors to the right status code."
+## Manual QA
 
-## Build order (matches how the pieces depend on each other)
+`QA-CHECKLIST.md` is a click-through script covering every "important case" from the assignment spec, run as the actual UI rather than via the API directly -- worth doing at least once before treating this as done.
 
-1. **Auth + org switching** — login, JWT issue/verify, "which orgs am I a
-   member of" endpoint, org switcher in the UI.
-2. **Invoice CRUD + workflow** — create/edit, line items, submit for review,
-   approve/reject, using the service functions already scaffolded.
-3. **Listing + details + activity log** — server-side table, detail view
-   with role-gated actions.
-4. **Member management** — add/remove/change role, using `Membership`
-   directly (never delete/recreate the `User`).
-5. **Polish pass** — loading/empty/error states, seed script, README screenshots.
+## Known simplifications / assumptions
 
-## Checklist — test each of these explicitly before submitting
+- Authentication is email/password via Supabase Auth rather than a full OAuth/SSO setup -- reasonable for the assignment's timeframe.
+- A Rejected invoice is currently terminal (no path back to Draft for resubmission) -- the spec doesn't specify this case, and this was the simpler interpretation.
+- Vendor names are free text; "Tata Metals" and "tata metals" are treated as different vendors for duplicate-detection purposes (case-sensitive).
+- The free-tier API host (Render) sleeps after inactivity, causing a slow first request after idle periods. Not a code issue -- would not occur on a paid tier or with a keep-alive ping.
 
-- [ ] User A cannot fetch/edit/approve an invoice belonging to an org they're not a member of, even with a guessed/valid-looking invoice id
-- [ ] Operator gets 403 attempting to approve/reject
-- [ ] Viewer gets 403 attempting to create/edit
-- [ ] Creator gets 403 attempting to approve their own invoice (even as Admin/Reviewer)
-- [ ] Two near-simultaneous create requests with the same vendor+invoice number → one succeeds, one gets a clean 409
-- [ ] Attempting an invalid transition (e.g. Draft → Approved directly) is rejected
-- [ ] Same user, different role in different orgs, behaves correctly after switching org
-- [ ] All of the above are enforced with the relevant UI action *hidden*, not just backend-blocked — but re-verify by hitting the API directly with curl/Postman, bypassing the UI entirely
+## Project structure
 
-## Notes for the writeup
-
-Be honest in the README about what's done vs. simplified (e.g. "auth uses
-email/password + JWT rather than a full OAuth provider for time reasons").
-Reviewers trust submissions that state trade-offs more than ones that imply
-everything is fully polished.
+```
+apps/
+  api/                  Fastify backend
+    src/
+      plugins/          auth (JWT verification), tenant (membership/RBAC)
+      routes/           orgs, invoices, members
+      lib/              pure business rules, Supabase client factories
+    test/
+      unit/             pure rule tests, no DB
+      integration/      real-Supabase tests, RLS + API + RPC
+      helpers/          disposable test-org factory
+  web/                  Next.js frontend
+    src/
+      app/orgs/[orgId]/ org-scoped pages (invoices, members, activity) under a shared layout
+      components/       shared UI (app shell, status badges, line-item editor, etc.)
+      lib/supabase/      browser + server Supabase client factories
+supabase/
+  migrations/           schema, RLS policies, transition_invoice() -- source of truth for the DB
+scripts/
+  seed.ts               creates seed users + orgs
+  cleanup-test-data.ts  purges any stray test-generated invoices from real orgs
+```
