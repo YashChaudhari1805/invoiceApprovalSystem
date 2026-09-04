@@ -4,19 +4,27 @@ import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
-export default function LoginPage() {
+export default function SignupPage() {
   const supabase = createClient();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [confirmationPending, setConfirmationPending] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { name },
+      },
+    });
 
     if (error) {
       setError(error.message);
@@ -24,18 +32,59 @@ export default function LoginPage() {
       return;
     }
 
-    window.location.href = "/orgs";
+    if (data.session) {
+      window.location.href = "/orgs";
+      return;
+    }
+
+    setConfirmationPending(true);
+    setLoading(false);
+  }
+
+  if (confirmationPending) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-wash-radial px-4">
+        <div className="w-full max-w-sm text-center">
+          <h1 className="mb-2 font-heading text-2xl font-semibold tracking-tight text-ink-950">
+            Check your email
+          </h1>
+          <p className="mb-6 text-sm text-ink-500">
+            We sent a confirmation link to <span className="font-medium text-ink-700">{email}</span>.
+            Click it, then come back and sign in.
+          </p>
+          <Link href="/login" className="text-sm font-medium text-accent-600 hover:text-accent-700">
+            Back to sign in
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-wash-radial px-4">
       <div className="w-full max-w-sm">
         <h1 className="mb-1 font-heading text-2xl font-semibold tracking-tight text-ink-950">
-          Sign in
+          Create account
         </h1>
         <p className="mb-8 text-sm text-ink-500">Invoice Approval System</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-ink-700">
+              Full name
+            </label>
+            <input
+              id="name"
+              type="text"
+              required
+              autoComplete="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full rounded-md border border-ink-100 bg-white px-3 py-2 text-sm text-ink-900 outline-none transition focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
+              placeholder="Jane Doe"
+            />
+          </div>
+
           <div>
             <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-ink-700">
               Email
@@ -60,11 +109,12 @@ export default function LoginPage() {
               id="password"
               type="password"
               required
-              autoComplete="current-password"
+              minLength={6}
+              autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full rounded-md border border-ink-100 bg-white px-3 py-2 text-sm text-ink-900 outline-none transition focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
-              placeholder="••••••••"
+              placeholder="At least 6 characters"
             />
           </div>
 
@@ -79,15 +129,20 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full rounded-md bg-accent-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-accent-700 disabled:opacity-50"
           >
-            {loading ? "Signing in…" : "Sign in"}
+            {loading ? "Creating account…" : "Create account"}
           </button>
         </form>
 
         <p className="mt-6 text-center text-sm text-ink-500">
-          Don&apos;t have an account?{" "}
-          <Link href="/signup" className="font-medium text-accent-600 hover:text-accent-700">
-            Sign up
+          Already have an account?{" "}
+          <Link href="/login" className="font-medium text-accent-600 hover:text-accent-700">
+            Sign in
           </Link>
+        </p>
+
+        <p className="mt-2 text-center text-xs text-ink-400">
+          Creating an account doesn&apos;t add you to any organization yet — an Admin
+          still needs to add you by email from their Members screen.
         </p>
       </div>
     </div>

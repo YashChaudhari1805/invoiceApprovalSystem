@@ -1,14 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-// Runs on every request. Two jobs:
-// 1. Refresh the Supabase session cookie so it doesn't silently expire
-//    mid-session (Supabase access tokens are short-lived; this is what
-//    keeps the user logged in without them noticing).
-// 2. Gate access: redirect to /login if there's no session and the route
-//    isn't public. This is a UX convenience, not the security boundary —
-//    every actual data access still goes through RLS regardless of whether
-//    someone found a way around this redirect.
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -33,7 +25,7 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isPublicRoute = request.nextUrl.pathname === "/login";
+  const isPublicRoute = request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/signup";
 
   if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone();
