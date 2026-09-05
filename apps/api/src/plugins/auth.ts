@@ -14,9 +14,6 @@ declare module "fastify" {
   }
   interface FastifyRequest {
     user: AuthUser;
-    // A Supabase client authenticated as this specific user — every query
-    // made through it is subject to RLS. Route handlers should use this,
-    // not supabaseAdmin, for anything that reads or writes tenant data.
     supabase: SupabaseClient;
   }
 }
@@ -33,9 +30,6 @@ export default fp(async (app) => {
       const token = header.slice("Bearer ".length);
 
       try {
-        // Verified locally against Supabase's cached public JWKS keys — no
-        // network round trip to the Auth API on every request. See
-        // verifyAccessToken's comment in lib/supabase.ts.
         req.user = await verifyAccessToken(token);
       } catch (err) {
         req.log.warn({ err }, "token verification failed");

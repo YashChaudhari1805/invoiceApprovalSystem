@@ -1,9 +1,6 @@
 import * as dotenv from "dotenv";
 import path from "path";
 
-// Load the root .env before anything else runs. Safe regardless of import
-// hoisting because src/lib/supabase.ts no longer reads process.env at
-// import time — only lazily, the first time a request needs a client.
 dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
 
 import { buildApp } from "./app";

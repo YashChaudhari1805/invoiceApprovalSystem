@@ -11,9 +11,7 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  // Whether Supabase requires email confirmation before the account is
-  // usable depends on a project setting we don't control from here — so
-  // rather than guessing, we branch on what signUp() actually returns.
+
   const [confirmationPending, setConfirmationPending] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -25,10 +23,6 @@ export default function SignupPage() {
       email,
       password,
       options: {
-        // Picked up by the handle_new_user() trigger (see
-        // supabase/migrations/0001_init.sql), which writes this into the
-        // profiles.name column — used everywhere a user's name is shown
-        // (activity log, members list, "Created by" on an invoice).
         data: { name },
       },
     });
@@ -39,11 +33,6 @@ export default function SignupPage() {
       return;
     }
 
-    // If email confirmation is OFF in this Supabase project, signUp()
-    // immediately returns an active session, same as signing in — so we
-    // can send them straight into the app. If confirmation is ON, `session`
-    // comes back null and the account isn't usable until they click the
-    // link in their inbox, so we show that instead of a broken redirect.
     if (data.session) {
       window.location.href = "/orgs";
       return;

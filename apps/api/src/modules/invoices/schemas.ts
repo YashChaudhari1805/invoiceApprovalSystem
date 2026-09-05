@@ -10,7 +10,7 @@ export const lineItemInputSchema = z.object({
 export const createInvoiceSchema = z.object({
   vendor: z.string().min(1).max(255),
   invoiceNumber: z.string().min(1).max(100),
-  invoiceDate: z.string().date(), // "YYYY-MM-DD"
+  invoiceDate: z.string().date(), 
   lineItems: z.array(lineItemInputSchema).min(1, "At least one line item is required"),
 });
 

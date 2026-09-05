@@ -21,13 +21,15 @@ One row per tenant — ABC Steel, XYZ Metals, etc. Every tenant-scoped table bel
 
 Unique constraint: `(user_id, organization_id)` — one role per user per org, so changing someone's role is an `UPDATE`, not a delete-and-recreate.
 
+`0005_no_self_membership_changes.sql` adds a policy (mirrored by an app-layer check in `routes/members.ts`) blocking an Admin from changing or removing their *own* membership row. Without it, an Admin could accidentally self-demote or self-remove and potentially leave an organization with zero Admins.
+
 ### `invoices`
 The core business object.
 
 - `taxable_amount`, `tax_amount`, `total_amount` are always **recomputed server-side** from `line_items` — treat any value arriving from the client for these as untrusted.
 - `created_by` is the "maker"; `approved_by` is the "checker." The `creator_not_approver` CHECK constraint is a database-level backstop for the maker-checker rule, in addition to the application-level check in `transition_invoice()` — belt and suspenders, since this is one of the rules the assignment specifically calls out as needing backend enforcement.
 - Unique constraint: `(organization_id, vendor, invoice_number)` — this single constraint is what makes duplicate-invoice protection safe under concurrent requests. Two simultaneous inserts for the same combination will race at the database level and Postgres guarantees exactly one wins, regardless of what the application code checked beforehand.
-- `status` moves through the workflow via the `transition_invoice()` function (see below) rather than a direct `UPDATE`, so the transition rules can't be bypassed by writing to the table directly.
+- `status` moves through the workflow via the `transition_invoice()` function (see below) rather than a direct `UPDATE`, so the transition rules can't be bypassed by writing to the table directly. This isn't just a convention: `0004_invoice_edit_permissions.sql` revokes `UPDATE` on the `status` column from the `authenticated` role entirely at the Postgres privilege level, so even a hand-crafted request straight from a browser dev console can't move status outside the whitelist — only `transition_invoice()` can, since it runs as `SECURITY DEFINER`.
 
 ### `line_items`
 Multiple rows per invoice — description, quantity, rate, tax rate, and a server-computed `amount`. Deleting an invoice cascades to its line items.

@@ -11,14 +11,6 @@ declare module "fastify" {
   }
 }
 
-/**
- * Re-derives the caller's membership fresh on every request by querying
- * `memberships` through req.supabase — the user-scoped client from auth.ts.
- * This query is itself subject to RLS, so even this lookup can't be tricked
- * into returning another user's membership row. If no row comes back, the
- * request is rejected before any invoice data is touched, regardless of
- * what org id or invoice id is in the URL.
- */
 export default fp(async (app) => {
   app.decorate(
     "requireMembership",

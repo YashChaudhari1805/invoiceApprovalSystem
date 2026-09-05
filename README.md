@@ -2,15 +2,17 @@
 
 A working multi-tenant web application for creating, reviewing, and approving purchase invoices, with role-based permissions, a maker-checker approval rule, and full audit history.
 
-**Live demo:** _add your deployed URLs here once confirmed working_
-- Frontend: `https://<your-app>.vercel.app`
-- API: `https://<your-api>.onrender.com` (free tier — the first request after a period of inactivity may take 30-60s to wake up)
+**Live demo:**
+- Frontend: `https://<your-vercel-app>.vercel.app` — **fill in your actual Vercel URL before submitting**
+- API: `https://invoiceapprovalsystem.onrender.com` (free tier — the first request after a period of inactivity may take 30-60s to wake up)
 
 ## Tech stack
 
 - **Frontend:** Next.js 14 (App Router) + React + TypeScript + Tailwind CSS
 - **Backend:** Node.js + Fastify + TypeScript
 - **Database & Auth:** Supabase (PostgreSQL + Row Level Security + Supabase Auth)
+
+This is a Node/TypeScript project, so dependencies are pinned via `package.json` + `package-lock.json` (at the repo root and in each workspace) rather than a `requirements.txt` — that file is a Python convention and doesn't apply here. `npm install` from the repo root installs everything for both workspaces via npm workspaces.
 
 ## Architecture at a glance
 
@@ -56,7 +58,9 @@ npm install
 npm run seed
 ```
 
-This creates two real Supabase Auth users (`rahul@example.com`, `priya@example.com`, both password `password123`) and two organizations, matching the assignment's example: Rahul is Admin at ABC Steel and Viewer at XYZ Metals; Priya is Reviewer at ABC Steel.
+This creates two real Supabase Auth users (`rahul@example.com`, `priya@example.com`, both password `password123`), two organizations, and four sample invoices (one each in Draft, Review, Approved, and Rejected) in ABC Steel — matching the assignment's example: Rahul is Admin at ABC Steel and Viewer at XYZ Metals; Priya is Reviewer at ABC Steel. This means the app has real data to look at immediately after seeding, rather than starting from empty screens.
+
+New users can also self-register at `/signup` (Supabase Auth email/password) — an Admin then adds them to an org by email from the Members screen. **If you want a self-registered account to be usable immediately** (no confirmation email), turn off "Confirm email" in your Supabase project under Authentication → Sign In / Providers → Email. This is off by default on a fresh project in some Supabase versions and on in others, so it's worth checking before a live demo — Supabase's own email sending has a low rate limit on the free tier, so relying on it during a demo is risky.
 
 ### 5. Run it
 
