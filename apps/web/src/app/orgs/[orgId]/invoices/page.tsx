@@ -72,7 +72,7 @@ export default async function InvoiceListPage({
         {canCreate && (
           <Link
             href={`/orgs/${params.orgId}/invoices/new`}
-            className="rounded-md bg-accent-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-accent-700"
+            className="btn-primary"
           >
             New invoice
           </Link>
@@ -83,7 +83,7 @@ export default async function InvoiceListPage({
         <InvoiceFilters />
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-ink-100 bg-white">
+      <div className="overflow-hidden card">
         {items.length === 0 ? (
           <p className="px-4 py-10 text-center text-sm text-ink-500">
             No invoices match these filters.

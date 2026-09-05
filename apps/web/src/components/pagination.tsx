@@ -25,7 +25,7 @@ export function Pagination({ page, pageSize, total }: { page: number; pageSize: 
         <button
           onClick={() => goTo(page - 1)}
           disabled={page <= 1}
-          className="rounded-md px-2.5 py-1 text-xs font-medium text-ink-700 transition hover:bg-ink-50 disabled:opacity-40 disabled:hover:bg-transparent"
+          className="rounded-full px-2.5 py-1 text-xs font-medium text-ink-700 transition hover:bg-ink-50 disabled:opacity-40 disabled:hover:bg-transparent"
         >
           Previous
         </button>
@@ -35,7 +35,7 @@ export function Pagination({ page, pageSize, total }: { page: number; pageSize: 
         <button
           onClick={() => goTo(page + 1)}
           disabled={page >= totalPages}
-          className="rounded-md px-2.5 py-1 text-xs font-medium text-ink-700 transition hover:bg-ink-50 disabled:opacity-40 disabled:hover:bg-transparent"
+          className="rounded-full px-2.5 py-1 text-xs font-medium text-ink-700 transition hover:bg-ink-50 disabled:opacity-40 disabled:hover:bg-transparent"
         >
           Next
         </button>

@@ -46,7 +46,7 @@ export function LineItemsEditor({
 
   return (
     <div>
-      <div className="overflow-hidden rounded-lg border border-ink-100">
+      <div className="overflow-hidden rounded-2xl border border-ink-100">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-ink-100 bg-ink-50 text-left text-xs font-medium uppercase tracking-wide text-ink-500">
@@ -123,7 +123,7 @@ export function LineItemsEditor({
       <button
         type="button"
         onClick={addRow}
-        className="mt-2 text-sm font-medium text-accent-600 transition hover:text-accent-700"
+        className="mt-2 btn-link"
       >
         + Add line item
       </button>

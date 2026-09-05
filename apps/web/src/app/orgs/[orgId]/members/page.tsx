@@ -46,7 +46,7 @@ export default async function MembersPage({ params }: { params: { orgId: string 
         <AddMemberForm orgId={params.orgId} />
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-ink-100 bg-white">
+      <div className="overflow-hidden card">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-ink-100 text-left text-xs font-medium uppercase tracking-wide text-ink-500">

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { SignOutLink } from "./sign-out-link";
 
 interface Org {
   id: string;
@@ -26,7 +26,6 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const supabase = createClient();
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const currentOrg = orgs.find((o) => o.id === currentOrgId);
 
@@ -36,22 +35,14 @@ export function AppShell({
     ...(currentRole === "ADMIN" ? [{ href: `/orgs/${currentOrgId}/members`, label: "Members" }] : []),
   ];
 
-  async function handleSignOut() {
-    await supabase.auth.signOut();
-    // Hard navigation, same reasoning as the login page: guarantees the
-    // next request is a real fetch with the cleared session, never a
-    // Router-Cache hit that could show the previous user's page.
-    window.location.href = "/login";
-  }
-
   return (
     <div className="flex min-h-screen">
-      <aside className="flex w-60 shrink-0 flex-col border-r border-ink-100 bg-white">
+      <aside className="flex w-60 shrink-0 flex-col border-r border-ink-100 bg-surface">
         <div className="border-b border-ink-100 px-5 py-5">
           <div className="relative">
             <button
               onClick={() => setSwitcherOpen((v) => !v)}
-              className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left transition hover:bg-ink-50"
+              className="flex w-full items-center justify-between rounded-full px-3 py-1.5 text-left transition hover:bg-ink-50"
             >
               <span className="truncate font-heading text-sm font-semibold text-ink-950">
                 {currentOrg?.name ?? "Select organization"}
@@ -61,14 +52,14 @@ export function AppShell({
               </svg>
             </button>
             {switcherOpen && (
-              <div className="absolute left-0 right-0 top-full z-10 mt-1 rounded-md border border-ink-100 bg-white py-1 shadow-lg shadow-ink-950/5">
+              <div className="dropdown-panel">
                 {orgs.map((org) => (
                   <Link
                     key={org.id}
                     href={`/orgs/${org.id}/invoices`}
                     onClick={() => setSwitcherOpen(false)}
-                    className={`flex items-center justify-between px-3 py-2 text-sm transition hover:bg-ink-50 ${
-                      org.id === currentOrgId ? "text-accent-600" : "text-ink-700"
+                    className={`dropdown-item ${
+                      org.id === currentOrgId ? "text-accent-500" : "text-ink-700"
                     }`}
                   >
                     <span className="truncate">{org.name}</span>
@@ -87,9 +78,7 @@ export function AppShell({
               <Link
                 key={item.href}
                 href={item.href}
-                className={`block rounded-md px-3 py-2 text-sm font-medium transition ${
-                  active ? "bg-accent-50 text-accent-700" : "text-ink-700 hover:bg-ink-50"
-                }`}
+                className={`nav-pill ${active ? "nav-pill-active" : "nav-pill-inactive"}`}
               >
                 {item.label}
               </Link>
@@ -99,12 +88,7 @@ export function AppShell({
 
         <div className="border-t border-ink-100 px-5 py-4">
           <p className="truncate text-xs text-ink-500">{userEmail}</p>
-          <button
-            onClick={handleSignOut}
-            className="mt-1 text-xs font-medium text-ink-500 transition hover:text-accent-600"
-          >
-            Sign out
-          </button>
+          <SignOutLink className="mt-1 text-xs font-medium text-ink-500 transition hover:text-accent-600" />
         </div>
       </aside>
 

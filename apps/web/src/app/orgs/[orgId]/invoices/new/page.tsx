@@ -30,7 +30,7 @@ export default async function NewInvoicePage({ params }: { params: { orgId: stri
       {canCreate ? (
         <NewInvoiceForm orgId={params.orgId} />
       ) : (
-        <p className="rounded-md bg-rose-100 px-4 py-3 text-sm text-rose-600">
+        <p className="rounded-xl bg-rose-100 px-4 py-3 text-sm text-rose-600">
           You don&apos;t have permission to create invoices in this organization.
         </p>
       )}

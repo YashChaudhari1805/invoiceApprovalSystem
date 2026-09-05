@@ -15,7 +15,7 @@ export default function Loading() {
         <Skeleton className="h-8 w-48" />
         <Skeleton className="h-8 w-32" />
       </div>
-      <div className="overflow-hidden rounded-lg border border-ink-100 bg-white">
+      <div className="overflow-hidden card">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="flex items-center gap-6 border-b border-ink-100 px-4 py-3.5 last:border-0">
             <Skeleton className="h-4 w-28" />

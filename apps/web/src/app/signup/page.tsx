@@ -11,6 +11,9 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // Whether Supabase requires email confirmation before the account is
+  // usable depends on a project setting we don't control from here — so
+  // rather than guessing, we branch on what signUp() actually returns.
   const [confirmationPending, setConfirmationPending] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -22,6 +25,10 @@ export default function SignupPage() {
       email,
       password,
       options: {
+        // Picked up by the handle_new_user() trigger (see
+        // supabase/migrations/0001_init.sql), which writes this into the
+        // profiles.name column — used everywhere a user's name is shown
+        // (activity log, members list, "Created by" on an invoice).
         data: { name },
       },
     });
@@ -32,6 +39,11 @@ export default function SignupPage() {
       return;
     }
 
+    // If email confirmation is OFF in this Supabase project, signUp()
+    // immediately returns an active session, same as signing in — so we
+    // can send them straight into the app. If confirmation is ON, `session`
+    // comes back null and the account isn't usable until they click the
+    // link in their inbox, so we show that instead of a broken redirect.
     if (data.session) {
       window.location.href = "/orgs";
       return;
@@ -43,7 +55,7 @@ export default function SignupPage() {
 
   if (confirmationPending) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-wash-radial px-4">
+      <div className="flex min-h-screen items-center justify-center bg-canvas px-4">
         <div className="w-full max-w-sm text-center">
           <h1 className="mb-2 font-heading text-2xl font-semibold tracking-tight text-ink-950">
             Check your email
@@ -52,7 +64,7 @@ export default function SignupPage() {
             We sent a confirmation link to <span className="font-medium text-ink-700">{email}</span>.
             Click it, then come back and sign in.
           </p>
-          <Link href="/login" className="text-sm font-medium text-accent-600 hover:text-accent-700">
+          <Link href="/login" className="text-sm btn-link">
             Back to sign in
           </Link>
         </div>
@@ -61,7 +73,7 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-wash-radial px-4">
+    <div className="flex min-h-screen items-center justify-center bg-canvas px-4">
       <div className="w-full max-w-sm">
         <h1 className="mb-1 font-heading text-2xl font-semibold tracking-tight text-ink-950">
           Create account
@@ -80,7 +92,7 @@ export default function SignupPage() {
               autoComplete="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full rounded-md border border-ink-100 bg-white px-3 py-2 text-sm text-ink-900 outline-none transition focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
+              className="w-full input-field"
               placeholder="Jane Doe"
             />
           </div>
@@ -96,7 +108,7 @@ export default function SignupPage() {
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-md border border-ink-100 bg-white px-3 py-2 text-sm text-ink-900 outline-none transition focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
+              className="w-full input-field"
               placeholder="you@example.com"
             />
           </div>
@@ -113,13 +125,13 @@ export default function SignupPage() {
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-md border border-ink-100 bg-white px-3 py-2 text-sm text-ink-900 outline-none transition focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
+              className="w-full input-field"
               placeholder="At least 6 characters"
             />
           </div>
 
           {error && (
-            <p role="alert" className="rounded-md bg-rose-100 px-3 py-2 text-sm text-rose-600">
+            <p role="alert" className="alert-error">
               {error}
             </p>
           )}
@@ -127,7 +139,7 @@ export default function SignupPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-md bg-accent-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-accent-700 disabled:opacity-50"
+            className="w-full btn-primary"
           >
             {loading ? "Creating account…" : "Create account"}
           </button>
@@ -135,7 +147,7 @@ export default function SignupPage() {
 
         <p className="mt-6 text-center text-sm text-ink-500">
           Already have an account?{" "}
-          <Link href="/login" className="font-medium text-accent-600 hover:text-accent-700">
+          <Link href="/login" className="btn-link">
             Sign in
           </Link>
         </p>

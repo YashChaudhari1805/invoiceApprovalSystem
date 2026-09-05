@@ -40,7 +40,7 @@ export function InvoiceFilters() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search invoice number…"
-          className="w-56 rounded-md border border-ink-100 bg-white px-3 py-1.5 text-sm text-ink-900 outline-none transition focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
+          className="w-56 input-field"
         />
       </form>
 
@@ -48,13 +48,13 @@ export function InvoiceFilters() {
         defaultValue={searchParams.get("vendor") ?? ""}
         onBlur={(e) => updateParam("vendor", e.target.value)}
         placeholder="Filter by vendor…"
-        className="w-48 rounded-md border border-ink-100 bg-white px-3 py-1.5 text-sm text-ink-900 outline-none transition focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
+        className="w-48 input-field"
       />
 
       <select
         defaultValue={searchParams.get("status") ?? ""}
         onChange={(e) => updateParam("status", e.target.value)}
-        className="rounded-md border border-ink-100 bg-white px-3 py-1.5 text-sm text-ink-900 outline-none transition focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
+        className="input-field"
       >
         {STATUSES.map((s) => (
           <option key={s.value} value={s.value}>

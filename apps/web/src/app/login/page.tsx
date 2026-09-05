@@ -24,11 +24,15 @@ export default function LoginPage() {
       return;
     }
 
+    // A hard navigation (not router.push) after sign-in, so the very next
+    // page load is a real request carrying the new session cookie — never
+    // served from Next's client-side Router Cache, which could otherwise
+    // reuse a previous user's cached page for the same URL in this tab.
     window.location.href = "/orgs";
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-wash-radial px-4">
+    <div className="flex min-h-screen items-center justify-center bg-canvas px-4">
       <div className="w-full max-w-sm">
         <h1 className="mb-1 font-heading text-2xl font-semibold tracking-tight text-ink-950">
           Sign in
@@ -47,7 +51,7 @@ export default function LoginPage() {
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-md border border-ink-100 bg-white px-3 py-2 text-sm text-ink-900 outline-none transition focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
+              className="w-full input-field"
               placeholder="you@example.com"
             />
           </div>
@@ -63,13 +67,13 @@ export default function LoginPage() {
               autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-md border border-ink-100 bg-white px-3 py-2 text-sm text-ink-900 outline-none transition focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
+              className="w-full input-field"
               placeholder="••••••••"
             />
           </div>
 
           {error && (
-            <p role="alert" className="rounded-md bg-rose-100 px-3 py-2 text-sm text-rose-600">
+            <p role="alert" className="alert-error">
               {error}
             </p>
           )}
@@ -77,7 +81,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-md bg-accent-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-accent-700 disabled:opacity-50"
+            className="w-full btn-primary"
           >
             {loading ? "Signing in…" : "Sign in"}
           </button>
@@ -85,7 +89,7 @@ export default function LoginPage() {
 
         <p className="mt-6 text-center text-sm text-ink-500">
           Don&apos;t have an account?{" "}
-          <Link href="/signup" className="font-medium text-accent-600 hover:text-accent-700">
+          <Link href="/signup" className="btn-link">
             Sign up
           </Link>
         </p>

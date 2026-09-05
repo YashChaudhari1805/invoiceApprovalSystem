@@ -3,9 +3,95 @@
 @tailwind utilities;
 
 ::selection {
-  background-color: #e5e3fb;
+  background-color: #2a2340;
+  color: #f5f2f8;
 }
 
 * {
   -webkit-font-smoothing: antialiased;
+}
+
+/* Dark-themed scrollbar so it doesn't flash a default light track over the
+   dark canvas — a small but noticeable detail in a permanently-dark app. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: #322e3b;
+  border-radius: 9999px;
+  border: 2px solid #121016;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: #3f3a4a;
+}
+
+/* ---------------------------------------------------------------------
+   Shared component classes.
+
+   Rather than repeating the same long Tailwind utility string on every
+   button/input/card across the app, each recurring UI pattern gets one
+   name here via @apply. Components then use e.g. className="btn-primary"
+   instead of the raw utility list. To change how every button or input
+   looks, edit it once in this file — nothing in /src needs to change.
+   ------------------------------------------------------------------- */
+@layer components {
+  /* Buttons — pill-shaped, Material's "filled button" shape */
+  .btn-primary {
+    @apply rounded-full bg-accent-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-700 disabled:opacity-50;
+  }
+  .btn-success {
+    @apply rounded-full bg-mint-500 px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-50;
+  }
+  .btn-danger-outline {
+    @apply rounded-full border border-rose-600 px-4 py-2 text-sm font-medium text-rose-600 transition hover:bg-rose-100 disabled:opacity-50;
+  }
+  .btn-link {
+    @apply text-sm font-medium text-accent-600 transition hover:text-accent-700;
+  }
+
+  /* Form fields — softer rounded-xl, not a full pill (a pill text field
+     reads unfamiliar for data entry, so this is deliberately different
+     from the button shape above). */
+  .input-field {
+    @apply rounded-xl border border-ink-100 bg-surface px-3 py-2 text-sm text-ink-900 outline-none transition focus:border-accent-500 focus:ring-1 focus:ring-accent-500 disabled:opacity-50;
+  }
+
+  /* Cards / tables / list containers — the large Material surface radius. */
+  .card {
+    @apply rounded-2xl border border-ink-100 bg-surface;
+  }
+
+  /* Inline form/alert error banners. */
+  .alert-error {
+    @apply rounded-xl bg-rose-100 px-3 py-2 text-sm text-rose-600;
+  }
+
+  /* Neutral pill chip, e.g. a role label next to an org name. */
+  .chip-neutral {
+    @apply rounded-full bg-ink-100 px-2.5 py-0.5 text-xs font-medium text-ink-700;
+  }
+
+  /* Sidebar navigation — the pill-shaped selected-item highlight is one of
+     Material 3's most recognizable navigation patterns. */
+  .nav-pill {
+    @apply block rounded-full px-3 py-2 text-sm font-medium transition;
+  }
+  .nav-pill-active {
+    @apply bg-accent-100 text-accent-500;
+  }
+  .nav-pill-inactive {
+    @apply text-ink-700 hover:bg-ink-50;
+  }
+
+  /* Floating dropdown menu (org switcher). */
+  .dropdown-panel {
+    @apply absolute left-0 right-0 top-full z-10 mt-1 rounded-xl border border-ink-100 bg-surface p-1 shadow-lg shadow-black/40;
+  }
+  .dropdown-item {
+    @apply flex items-center justify-between rounded-lg px-3 py-2 text-sm transition hover:bg-ink-50;
+  }
 }

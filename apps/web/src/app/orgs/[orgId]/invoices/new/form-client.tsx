@@ -49,7 +49,7 @@ export function NewInvoiceForm({ orgId }: { orgId: string }) {
             required
             value={vendor}
             onChange={(e) => setVendor(e.target.value)}
-            className="w-full rounded-md border border-ink-100 bg-white px-3 py-2 text-sm outline-none transition focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
+            className="w-full input-field"
           />
         </div>
         <div>
@@ -58,7 +58,7 @@ export function NewInvoiceForm({ orgId }: { orgId: string }) {
             required
             value={invoiceNumber}
             onChange={(e) => setInvoiceNumber(e.target.value)}
-            className="w-full rounded-md border border-ink-100 bg-white px-3 py-2 text-sm outline-none transition focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
+            className="w-full input-field"
           />
         </div>
         <div>
@@ -68,7 +68,7 @@ export function NewInvoiceForm({ orgId }: { orgId: string }) {
             type="date"
             value={invoiceDate}
             onChange={(e) => setInvoiceDate(e.target.value)}
-            className="w-full rounded-md border border-ink-100 bg-white px-3 py-2 text-sm outline-none transition focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
+            className="w-full input-field"
           />
         </div>
       </div>
@@ -78,13 +78,13 @@ export function NewInvoiceForm({ orgId }: { orgId: string }) {
         <LineItemsEditor items={lineItems} onChange={setLineItems} />
       </div>
 
-      {error && <p className="rounded-md bg-rose-100 px-3 py-2 text-sm text-rose-600">{error}</p>}
+      {error && <p className="alert-error">{error}</p>}
 
       <div className="flex items-center gap-3">
         <button
           type="submit"
           disabled={isPending}
-          className="rounded-md bg-accent-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-accent-700 disabled:opacity-50"
+          className="btn-primary"
         >
           {isPending ? "Creating…" : "Create invoice"}
         </button>

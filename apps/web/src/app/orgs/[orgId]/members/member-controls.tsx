@@ -59,7 +59,7 @@ export function MemberRow({
           value={member.role}
           disabled={isPending || isSelf}
           onChange={(e) => handleRoleChange(e.target.value)}
-          className="rounded-md border border-ink-100 bg-white px-2 py-1 text-sm outline-none transition focus:border-accent-500 focus:ring-1 focus:ring-accent-500 disabled:opacity-50"
+          className="input-field"
         >
           {ROLES.map((r) => (
             <option key={r} value={r}>
@@ -114,7 +114,7 @@ export function AddMemberForm({ orgId }: { orgId: string }) {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="rounded-md bg-accent-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-accent-700"
+        className="btn-primary"
       >
         Add member
       </button>
@@ -130,14 +130,14 @@ export function AddMemberForm({ orgId }: { orgId: string }) {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="user@example.com"
-          className="w-56 rounded-md border border-ink-100 bg-white px-3 py-2 text-sm outline-none transition focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
+          className="w-56 input-field"
         />
         {error && <p className="mt-1 text-xs text-rose-600">{error}</p>}
       </div>
       <select
         value={role}
         onChange={(e) => setRole(e.target.value as (typeof ROLES)[number])}
-        className="rounded-md border border-ink-100 bg-white px-2 py-2 text-sm outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
+        className="rounded-xl border border-ink-100 bg-surface px-2 py-2 text-sm outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
       >
         {ROLES.map((r) => (
           <option key={r} value={r}>
@@ -148,7 +148,7 @@ export function AddMemberForm({ orgId }: { orgId: string }) {
       <button
         type="submit"
         disabled={isPending}
-        className="rounded-md bg-accent-600 px-3.5 py-2 text-sm font-medium text-white transition hover:bg-accent-700 disabled:opacity-50"
+        className="btn-primary"
       >
         {isPending ? "Adding…" : "Add"}
       </button>

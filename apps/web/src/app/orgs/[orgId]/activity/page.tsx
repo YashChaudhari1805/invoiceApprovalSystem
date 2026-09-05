@@ -44,7 +44,7 @@ export default async function ActivityPage({ params }: { params: { orgId: string
       {activity.length === 0 ? (
         <p className="text-sm text-ink-500">No activity yet.</p>
       ) : (
-        <ul className="divide-y divide-ink-100 rounded-lg border border-ink-100 bg-white">
+        <ul className="divide-y divide-ink-100 card">
           {activity.map((entry) => {
             const describe = LABELS[entry.action] ?? (() => entry.action.toLowerCase().replace(/_/g, " "));
             return (
@@ -57,7 +57,7 @@ export default async function ActivityPage({ params }: { params: { orgId: string
                       {" "}
                       <Link
                         href={`/orgs/${params.orgId}/invoices/${entry.invoice.id}`}
-                        className="font-medium text-accent-600 hover:text-accent-700"
+                        className="btn-link"
                       >
                         {entry.invoice.invoice_number}
                       </Link>

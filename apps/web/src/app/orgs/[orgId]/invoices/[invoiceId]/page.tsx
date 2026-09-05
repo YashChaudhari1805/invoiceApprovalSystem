@@ -111,14 +111,14 @@ export default async function InvoiceDetailPage({
         <div className="mb-4">
           <Link
             href={`/orgs/${params.orgId}/invoices/${invoice.id}/edit`}
-            className="text-sm font-medium text-accent-600 transition hover:text-accent-700"
+            className="btn-link"
           >
             Edit invoice
           </Link>
         </div>
       )}
 
-      <div className="mb-6 grid grid-cols-4 gap-4 rounded-lg border border-ink-100 bg-white p-4 text-sm">
+      <div className="mb-6 grid grid-cols-4 gap-4 card p-4 text-sm">
         <div>
           <p className="text-ink-500">Created by</p>
           <p className="mt-0.5 font-medium text-ink-900">{invoice.creator?.name ?? "Unknown"}</p>
@@ -140,7 +140,7 @@ export default async function InvoiceDetailPage({
       </div>
 
       <h2 className="mb-2 text-sm font-medium text-ink-700">Line items</h2>
-      <div className="mb-6 overflow-hidden rounded-lg border border-ink-100 bg-white">
+      <div className="mb-6 overflow-hidden card">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-ink-100 bg-ink-50 text-left text-xs font-medium uppercase tracking-wide text-ink-500">
@@ -176,7 +176,7 @@ export default async function InvoiceDetailPage({
       </div>
 
       <h2 className="mb-2 text-sm font-medium text-ink-700">Activity</h2>
-      <ul className="space-y-3 rounded-lg border border-ink-100 bg-white p-4">
+      <ul className="space-y-3 card p-4">
         {invoice.activity.map((entry) => (
           <li key={entry.id} className="flex items-baseline justify-between text-sm">
             <span className="text-ink-700">
