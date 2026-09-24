@@ -3,6 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { apiFetch } from "@/lib/api";
 import { StatusBadge } from "@/components/status-badge";
+import { RevalidateOnFocus } from "@/components/revalidate-on-focus";
 import { InvoiceActions } from "./invoice-actions";
 
 interface Org {
@@ -94,6 +95,7 @@ export default async function InvoiceDetailPage({
 
   return (
     <div className="mx-auto max-w-3xl px-8 py-8">
+      <RevalidateOnFocus />
       <div className="mb-6 flex items-start justify-between">
         <div>
           <div className="mb-1 flex items-center gap-2">

@@ -70,6 +70,11 @@
     @apply rounded-xl bg-rose-100 px-3 py-2 text-sm text-rose-600;
   }
 
+  /* Inline success banners, e.g. after an approve/reject/submit action. */
+  .alert-success {
+    @apply rounded-xl bg-mint-100 px-3 py-2 text-sm text-mint-500;
+  }
+
   /* Neutral pill chip, e.g. a role label next to an org name. */
   .chip-neutral {
     @apply rounded-full bg-ink-100 px-2.5 py-0.5 text-xs font-medium text-ink-700;

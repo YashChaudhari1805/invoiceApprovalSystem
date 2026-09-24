@@ -1,5 +1,6 @@
 import { FastifyInstance } from "fastify";
 import { computeInvoiceTotals, can, canEditInvoice } from "../lib/invoice-rules";
+import { escapeLikePattern } from "../lib/search";
 import {
   createInvoiceSchema,
   listQuerySchema,
@@ -100,8 +101,12 @@ export default async function invoiceRoutes(app: FastifyInstance) {
       .eq("organization_id", req.membership.organizationId)
       .order("created_at", { ascending: false });
 
-    if (search) query = query.ilike("invoice_number", `%${search}%`);
-    if (vendor) query = query.eq("vendor", vendor);
+    // Both are case-insensitive partial matches (ILIKE), e.g. "tata" matches
+    // "Tata Metals" and "inv-1" matches "INV-1002". User-supplied % and _ are
+    // escaped first so they're treated as literal characters, not SQL
+    // wildcards — otherwise typing "50%" would match anything.
+    if (search) query = query.ilike("invoice_number", `%${escapeLikePattern(search)}%`);
+    if (vendor) query = query.ilike("vendor", `%${escapeLikePattern(vendor)}%`);
     if (status) query = query.eq("status", status);
 
     const from = (page - 1) * pageSize;

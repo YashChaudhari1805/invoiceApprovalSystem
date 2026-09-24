@@ -154,4 +154,82 @@ describe("GET /orgs/:orgId/invoices", () => {
     });
     expect(res.statusCode).toBe(403);
   });
+
+  describe("search (?search=)", () => {
+    // A unique tag on every run so this suite is never affected by
+    // left-over rows from a previous run or from other tests in this file.
+    const tag = `SRCH${Date.now()}`;
+
+    beforeAll(async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: `/orgs/${testOrgId}/invoices`,
+        headers: { authorization: `Bearer ${rahulToken}` },
+        payload: validInvoicePayload({ vendor: "Search Test Vendor", invoiceNumber: `${tag}-0042` }),
+      });
+      expect(res.statusCode).toBe(201);
+    });
+
+    it("matches on a partial, case-insensitive invoice number", async () => {
+      const res = await app.inject({
+        method: "GET",
+        // lowercased and only the middle of the number — proves it's a
+        // case-insensitive partial match, not an exact/prefix one.
+        url: `/orgs/${testOrgId}/invoices?search=${tag.toLowerCase()}-004`,
+        headers: { authorization: `Bearer ${rahulToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.items.some((item: any) => item.invoice_number === `${tag}-0042`)).toBe(true);
+    });
+
+    it("returns no results for a non-matching invoice number", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: `/orgs/${testOrgId}/invoices?search=THIS-NUMBER-DOES-NOT-EXIST`,
+        headers: { authorization: `Bearer ${rahulToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.items).toHaveLength(0);
+      expect(body.total).toBe(0);
+    });
+  });
+
+  describe("vendor filter (?vendor=)", () => {
+    beforeAll(async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: `/orgs/${testOrgId}/invoices`,
+        headers: { authorization: `Bearer ${rahulToken}` },
+        payload: validInvoicePayload({ vendor: "Tata Metals", invoiceNumber: `VENDOR-TEST-${Date.now()}` }),
+      });
+      expect(res.statusCode).toBe(201);
+    });
+
+    it("matches a case-insensitive partial vendor name (\"tata\" -> \"Tata Metals\")", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: `/orgs/${testOrgId}/invoices?vendor=tata`,
+        headers: { authorization: `Bearer ${rahulToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.items.length).toBeGreaterThan(0);
+      for (const item of body.items) {
+        expect(item.vendor.toLowerCase()).toContain("tata");
+      }
+    });
+
+    it("returns no results for a vendor that doesn't exist", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: `/orgs/${testOrgId}/invoices?vendor=NoSuchVendorAtAll`,
+        headers: { authorization: `Bearer ${rahulToken}` },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json();
+      expect(body.items).toHaveLength(0);
+    });
+  });
 });
