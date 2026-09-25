@@ -82,7 +82,7 @@ export function InvoiceActions({
   if (availableActions.length === 0) return null;
 
   return (
-    <div className="sticky bottom-0 -mx-4 border-t border-ink-100 bg-surface/95 px-4 py-3 backdrop-blur sm:-mx-8 sm:px-8">
+    <div className="sticky bottom-0 -mx-4 mt-6 border-t border-ink-100 bg-surface/95 px-4 py-3 backdrop-blur sm:-mx-8 sm:px-8">
       <LoadingOverlay
         show={isPending}
         label={pendingAction ? ACTION_META[pendingAction].pendingLabel : "Working…"}

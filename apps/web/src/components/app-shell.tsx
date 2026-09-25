@@ -47,7 +47,7 @@ export function AppShell({
   ];
 
   return (
-    <div className="flex min-h-screen flex-col md:flex-row">
+    <div className="flex h-screen flex-col overflow-hidden md:flex-row">
       {/* Desktop sidebar — hidden below md, where the bottom bar takes over. */}
       <aside className="hidden w-60 shrink-0 flex-col border-r border-ink-100 bg-surface md:flex">
         <div className="border-b border-ink-100 px-5 py-5">
@@ -162,7 +162,7 @@ export function AppShell({
         )}
       </header>
 
-      <main className="flex-1 overflow-y-auto pb-16 md:pb-0">{children}</main>
+      <main className="min-h-0 flex-1 overflow-y-auto pb-16 md:pb-0">{children}</main>
 
       {/* Mobile bottom bar — same three destinations as the desktop sidebar,
           reachable with a thumb instead of scrolled off the top of a tall page. */}
