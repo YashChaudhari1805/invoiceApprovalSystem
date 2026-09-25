@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { LoadingOverlay } from "@/components/loading-overlay";
 
 export default function LoginPage() {
   const supabase = createClient();
@@ -33,6 +34,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-canvas px-4">
+      <LoadingOverlay show={loading} label="Signing in…" />
       <div className="w-full max-w-sm">
         <h1 className="mb-1 font-heading text-2xl font-semibold tracking-tight text-ink-950">
           Sign in

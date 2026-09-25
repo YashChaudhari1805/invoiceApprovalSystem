@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { startRouteProgress } from "./route-progress-bar";
 
 const STATUSES = [
   { value: "", label: "All statuses" },
@@ -37,6 +38,7 @@ export function InvoiceFilters() {
   useEffect(() => setVendor(urlVendor), [urlVendor]);
 
   function pushParams(next: Partial<Record<"search" | "vendor" | "status", string>>) {
+    startRouteProgress();
     const params = new URLSearchParams(searchParams.toString());
     for (const [key, value] of Object.entries(next)) {
       if (value) params.set(key, value);
@@ -74,8 +76,19 @@ export function InvoiceFilters() {
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search invoice number… (min 4 characters)"
           aria-label="Search invoice number"
+          aria-describedby="search-hint"
           className="w-full input-field sm:w-56"
         />
+        {/* Previously a search under 4 characters just silently did
+            nothing, which reads as "broken" rather than "not enough
+            typed yet". This makes the wait state visible and tells the
+            user Enter always works regardless of length. */}
+        {search.length > 0 && search.length < SEARCH_MIN_LENGTH && (
+          <p id="search-hint" className="mt-1 text-xs text-ink-500">
+            Keep typing — {SEARCH_MIN_LENGTH - search.length} more character
+            {SEARCH_MIN_LENGTH - search.length === 1 ? "" : "s"} to search automatically, or press Enter now.
+          </p>
+        )}
       </form>
 
       <input

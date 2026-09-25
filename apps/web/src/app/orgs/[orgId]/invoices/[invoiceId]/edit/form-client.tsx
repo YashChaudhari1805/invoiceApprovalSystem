@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { LineItemsEditor, LineItemDraft } from "@/components/line-items-editor";
+import { LineItemsEditor, LineItemDraft, getLineItemsError } from "@/components/line-items-editor";
+import { LoadingOverlay } from "@/components/loading-overlay";
 import { updateInvoiceAction } from "../../actions";
 
 interface ExistingLineItem {
@@ -41,10 +42,19 @@ export function EditInvoiceForm({
     }))
   );
   const [error, setError] = useState<string | null>(null);
+  const [showLineItemErrors, setShowLineItemErrors] = useState(false);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    const lineItemsError = getLineItemsError(lineItems);
+    if (lineItemsError) {
+      setShowLineItemErrors(true);
+      setError(lineItemsError);
+      return;
+    }
+    setShowLineItemErrors(false);
 
     const payload = {
       vendor,
@@ -70,6 +80,7 @@ export function EditInvoiceForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      <LoadingOverlay show={isPending} label="Saving changes…" />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
           <label className="mb-1.5 block text-sm font-medium text-ink-700">Vendor</label>
@@ -103,7 +114,7 @@ export function EditInvoiceForm({
 
       <div>
         <label className="mb-1.5 block text-sm font-medium text-ink-700">Line items</label>
-        <LineItemsEditor items={lineItems} onChange={setLineItems} />
+        <LineItemsEditor items={lineItems} onChange={setLineItems} showErrors={showLineItemErrors} />
       </div>
 
       {error && <p className="alert-error">{error}</p>}

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/toast";
+import { LoadingOverlay } from "@/components/loading-overlay";
 import { transitionInvoiceAction } from "../actions";
 
 type ActionKind = "SUBMIT_FOR_REVIEW" | "APPROVE" | "REJECT";
@@ -82,6 +83,10 @@ export function InvoiceActions({
 
   return (
     <div className="sticky bottom-0 -mx-4 border-t border-ink-100 bg-surface/95 px-4 py-3 backdrop-blur sm:-mx-8 sm:px-8">
+      <LoadingOverlay
+        show={isPending}
+        label={pendingAction ? ACTION_META[pendingAction].pendingLabel : "Working…"}
+      />
       <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-2">
         {(["SUBMIT_FOR_REVIEW", "APPROVE", "REJECT"] as ActionKind[])
           .filter((action) => availableActions.includes(action))

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { addMemberAction, updateMemberRoleAction, removeMemberAction } from "./actions";
+import { LoadingOverlay } from "@/components/loading-overlay";
 
 const ROLES = ["ADMIN", "OPERATOR", "REVIEWER", "VIEWER"] as const;
 
@@ -24,22 +25,30 @@ export function MemberRow({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [removed, setRemoved] = useState(false);
+  // Distinguishes which of the two mutations on this row is in flight, so
+  // the blocking overlay's label ("Updating role…" vs "Removing member…")
+  // matches what's actually happening instead of a generic "Working…".
+  const [pendingKind, setPendingKind] = useState<"role" | "remove" | null>(null);
 
   function handleRoleChange(role: string) {
     setError(null);
+    setPendingKind("role");
     startTransition(async () => {
       const result = await updateMemberRoleAction(orgId, member.id, role as any);
       if (result.error) setError(result.error);
+      setPendingKind(null);
     });
   }
 
   function handleRemove() {
     if (!confirm(`Remove ${member.user.name} from this organization?`)) return;
     setError(null);
+    setPendingKind("remove");
     startTransition(async () => {
       const result = await removeMemberAction(orgId, member.id);
       if (result.error) {
         setError(result.error);
+        setPendingKind(null);
         return;
       }
       setRemoved(true);
@@ -50,6 +59,10 @@ export function MemberRow({
 
   return (
     <>
+      <LoadingOverlay
+        show={isPending}
+        label={pendingKind === "remove" ? "Removing member…" : "Updating role…"}
+      />
       <tr>
         <td className="px-4 py-3">
           <p className="font-medium text-ink-900">{member.user.name}</p>
@@ -130,6 +143,7 @@ export function AddMemberForm({ orgId }: { orgId: string }) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-start">
+      <LoadingOverlay show={isPending} label="Adding member…" />
       <div>
         <input
           required

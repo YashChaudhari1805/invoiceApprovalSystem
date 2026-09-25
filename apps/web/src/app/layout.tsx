@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Manrope, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/toast";
+import { RouteProgressBar } from "@/components/route-progress-bar";
 
 const heading = Manrope({ subsets: ["latin"], variable: "--font-heading", weight: ["500", "600", "700"] });
 const body = Inter({ subsets: ["latin"], variable: "--font-body" });
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="min-h-screen bg-canvas font-sans text-ink-900 antialiased">
+        <RouteProgressBar />
         <ToastProvider>{children}</ToastProvider>
       </body>
     </html>

@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { LineItemsEditor, LineItemDraft, emptyLineItem } from "@/components/line-items-editor";
+import { LineItemsEditor, LineItemDraft, emptyLineItem, getLineItemsError } from "@/components/line-items-editor";
+import { LoadingOverlay } from "@/components/loading-overlay";
 import { createInvoiceAction } from "../actions";
 
 export function NewInvoiceForm({ orgId }: { orgId: string }) {
@@ -13,10 +14,22 @@ export function NewInvoiceForm({ orgId }: { orgId: string }) {
   const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [lineItems, setLineItems] = useState<LineItemDraft[]>([emptyLineItem()]);
   const [error, setError] = useState<string | null>(null);
+  // Flipped on once a submit is attempted with invalid line items, so the
+  // red inline states in LineItemsEditor only appear after that point
+  // rather than greeting a first-time visitor with a wall of red.
+  const [showLineItemErrors, setShowLineItemErrors] = useState(false);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    const lineItemsError = getLineItemsError(lineItems);
+    if (lineItemsError) {
+      setShowLineItemErrors(true);
+      setError(lineItemsError);
+      return;
+    }
+    setShowLineItemErrors(false);
 
     const payload = {
       vendor,
@@ -42,6 +55,7 @@ export function NewInvoiceForm({ orgId }: { orgId: string }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      <LoadingOverlay show={isPending} label="Creating invoice…" />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
           <label className="mb-1.5 block text-sm font-medium text-ink-700">Vendor</label>
@@ -75,7 +89,7 @@ export function NewInvoiceForm({ orgId }: { orgId: string }) {
 
       <div>
         <label className="mb-1.5 block text-sm font-medium text-ink-700">Line items</label>
-        <LineItemsEditor items={lineItems} onChange={setLineItems} />
+        <LineItemsEditor items={lineItems} onChange={setLineItems} showErrors={showLineItemErrors} />
       </div>
 
       {error && <p className="alert-error">{error}</p>}

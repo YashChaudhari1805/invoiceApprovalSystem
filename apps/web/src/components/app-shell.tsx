@@ -29,7 +29,16 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const [switcherOpen, setSwitcherOpen] = useState(false);
+  // Separate open state for the mobile header's own switcher instance —
+  // kept distinct from the desktop sidebar's `switcherOpen` above so that
+  // resizing across the md breakpoint (or the two existing side by side in
+  // devtools) can't leave one dropdown open while its trigger is hidden.
+  const [mobileSwitcherOpen, setMobileSwitcherOpen] = useState(false);
   const currentOrg = orgs.find((o) => o.id === currentOrgId);
+  // Below one org, a switcher has nothing to switch to — collapse it back
+  // to plain text rather than showing a dropdown affordance that always
+  // opens to a single, already-selected row.
+  const canSwitch = orgs.length > 1;
 
   const navItems = [
     { href: `/orgs/${currentOrgId}/invoices`, label: "Invoices", Icon: InvoicesIcon },
@@ -95,20 +104,62 @@ export function AppShell({
             <p className="min-w-0 flex-1 truncate text-xs text-ink-500">{userEmail}</p>
             <ThemeToggle />
           </div>
-          <SignOutLink className="mt-1 text-xs font-medium text-ink-500 transition hover:text-accent-600" />
+          <SignOutLink className="mt-2 w-full" />
         </div>
       </aside>
 
-      {/* Mobile top bar — org name + theme toggle + sign out, since there's
-          no room for the full switcher/profile block from the desktop sidebar. */}
-      <header className="flex items-center justify-between gap-2 border-b border-ink-100 bg-surface px-4 py-3 md:hidden">
-        <span className="truncate font-heading text-sm font-semibold text-ink-950">
-          {currentOrg?.name ?? "Select organization"}
-        </span>
-        <div className="flex shrink-0 items-center gap-1">
-          <ThemeToggle />
-          <SignOutLink className="text-xs font-medium text-ink-500 transition hover:text-accent-600" />
+      {/* Mobile top bar — org switcher + theme toggle + sign out. Previously
+          this rendered the org name as plain text with no way to switch
+          orgs on mobile at all; someone belonging to more than one
+          organization had no path to a second org except manually editing
+          the URL. This mirrors the desktop sidebar's dropdown instead. */}
+      <header className="relative border-b border-ink-100 bg-surface md:hidden">
+        <div className="flex items-center justify-between gap-2 px-4 py-3">
+          {canSwitch ? (
+            <button
+              onClick={() => setMobileSwitcherOpen((v) => !v)}
+              aria-expanded={mobileSwitcherOpen}
+              aria-haspopup="true"
+              className="-ml-2 flex min-w-0 items-center gap-1 rounded-full py-1 pl-2 pr-2.5 text-left transition hover:bg-ink-50"
+            >
+              <span className="truncate font-heading text-sm font-semibold text-ink-950">
+                {currentOrg?.name ?? "Select organization"}
+              </span>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 20 20"
+                fill="none"
+                className={`shrink-0 text-ink-500 transition-transform ${mobileSwitcherOpen ? "rotate-180" : ""}`}
+              >
+                <path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          ) : (
+            <span className="truncate font-heading text-sm font-semibold text-ink-950">
+              {currentOrg?.name ?? "Select organization"}
+            </span>
+          )}
+          <div className="flex shrink-0 items-center gap-1">
+            <ThemeToggle />
+            <SignOutLink />
+          </div>
         </div>
+        {canSwitch && mobileSwitcherOpen && (
+          <div className="dropdown-panel left-4 right-4 mx-0">
+            {orgs.map((org) => (
+              <Link
+                key={org.id}
+                href={`/orgs/${org.id}/invoices`}
+                onClick={() => setMobileSwitcherOpen(false)}
+                className={`dropdown-item ${org.id === currentOrgId ? "text-accent-500" : "text-ink-700"}`}
+              >
+                <span className="truncate">{org.name}</span>
+                <span className="ml-2 shrink-0 text-xs text-ink-300">{org.role}</span>
+              </Link>
+            ))}
+          </div>
+        )}
       </header>
 
       <main className="flex-1 overflow-y-auto pb-16 md:pb-0">{children}</main>

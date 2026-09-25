@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { startRouteProgress } from "./route-progress-bar";
 
 export function Pagination({ page, pageSize, total }: { page: number; pageSize: number; total: number }) {
   const router = useRouter();
@@ -9,6 +10,7 @@ export function Pagination({ page, pageSize, total }: { page: number; pageSize: 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   function goTo(targetPage: number) {
+    startRouteProgress();
     const params = new URLSearchParams(searchParams.toString());
     params.set("page", String(targetPage));
     router.push(`${pathname}?${params.toString()}`);
