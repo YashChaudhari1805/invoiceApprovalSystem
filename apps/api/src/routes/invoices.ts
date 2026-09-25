@@ -122,6 +122,39 @@ export default async function invoiceRoutes(app: FastifyInstance) {
     return reply.send({ items: data, total: count, page, pageSize });
   });
 
+  // GET /orgs/:orgId/invoices/summary — counts backing the "Command Center"
+  // triage widgets (In review / Drafts / Processed this week). Cheap,
+  // count-only (head: true) queries scoped the same way the list endpoint
+  // is, independent of whatever search/vendor/status/page filters the list
+  // view currently has applied — the widgets always reflect the whole org.
+  app.get("/orgs/:orgId/invoices/summary", { preHandler }, async (req, reply) => {
+    const orgId = req.membership.organizationId;
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    const [draft, review, processedRecently] = await Promise.all([
+      req.supabase.from("invoices").select("id", { count: "exact", head: true }).eq("organization_id", orgId).eq("status", "DRAFT"),
+      req.supabase.from("invoices").select("id", { count: "exact", head: true }).eq("organization_id", orgId).eq("status", "REVIEW"),
+      req.supabase
+        .from("invoices")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", orgId)
+        .in("status", ["APPROVED", "REJECTED"])
+        .gte("updated_at", sevenDaysAgo),
+    ]);
+
+    const firstError = draft.error ?? review.error ?? processedRecently.error;
+    if (firstError) {
+      req.log.error(firstError);
+      return reply.code(500).send({ error: "Failed to load invoice summary" });
+    }
+
+    return reply.send({
+      draft: draft.count ?? 0,
+      review: review.count ?? 0,
+      processedRecently: processedRecently.count ?? 0,
+    });
+  });
+
   // GET /orgs/:orgId/invoices/:invoiceId
   // Returns invoice info, line items, activity history, and which actions
   // the frontend should show for this user — but that action list is purely

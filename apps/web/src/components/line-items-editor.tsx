@@ -46,8 +46,9 @@ export function LineItemsEditor({
 
   return (
     <div>
-      <div className="overflow-hidden rounded-2xl border border-ink-100">
-        <table className="w-full text-sm">
+      {/* Desktop/tablet: dense table, one row per line item. */}
+      <div className="hidden overflow-x-auto rounded-2xl border border-ink-100 sm:block">
+        <table className="w-full min-w-[520px] text-sm">
           <thead>
             <tr className="border-b border-ink-100 bg-ink-50 text-left text-xs font-medium uppercase tracking-wide text-ink-500">
               <th className="px-3 py-2 font-medium">Description</th>
@@ -119,6 +120,77 @@ export function LineItemsEditor({
           </tbody>
         </table>
       </div>
+
+      {/* Mobile: one card per line item — a 6-column row (qty/rate/tax%/
+          amount/description/remove) has no honest way to fit a 320px
+          screen, so this is a distinct layout rather than a squeezed
+          version of the table above. */}
+      <ul className="space-y-3 sm:hidden">
+        {items.map((item, i) => (
+          <li key={i} className="rounded-2xl border border-ink-100 p-3">
+            <div className="flex items-start justify-between gap-2">
+              <input
+                value={item.description}
+                onChange={(e) => update(i, "description", e.target.value)}
+                placeholder="Item description"
+                aria-label="Description"
+                className="w-full rounded border-0 bg-transparent px-1 py-1 text-sm font-medium text-ink-900 outline-none focus:bg-ink-50"
+              />
+              {items.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removeRow(i)}
+                  className="shrink-0 px-1 text-ink-300 transition hover:text-rose-600"
+                  aria-label="Remove line item"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              <label className="block">
+                <span className="block text-[10px] font-medium uppercase tracking-wide text-ink-500">Qty</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={item.quantity}
+                  onChange={(e) => update(i, "quantity", e.target.value)}
+                  className="mt-0.5 w-full input-field px-2 py-1 text-right text-sm"
+                />
+              </label>
+              <label className="block">
+                <span className="block text-[10px] font-medium uppercase tracking-wide text-ink-500">Rate</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={item.rate}
+                  onChange={(e) => update(i, "rate", e.target.value)}
+                  className="mt-0.5 w-full input-field px-2 py-1 text-right text-sm"
+                />
+              </label>
+              <label className="block">
+                <span className="block text-[10px] font-medium uppercase tracking-wide text-ink-500">Tax %</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={item.taxRate}
+                  onChange={(e) => update(i, "taxRate", e.target.value)}
+                  className="mt-0.5 w-full input-field px-2 py-1 text-right text-sm"
+                />
+              </label>
+            </div>
+            <p className="mt-2 text-right text-sm text-ink-700">
+              Amount:{" "}
+              <span className="font-medium text-ink-900">
+                {lineAmount(item).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              </span>
+            </p>
+          </li>
+        ))}
+      </ul>
 
       <button
         type="button"

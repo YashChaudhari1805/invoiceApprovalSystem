@@ -49,43 +49,50 @@ export function MemberRow({
   if (removed) return null;
 
   return (
-    <tr>
-      <td className="px-4 py-3">
-        <p className="font-medium text-ink-900">{member.user.name}</p>
-        <p className="text-xs text-ink-500">{member.user.email}</p>
-      </td>
-      <td className="px-4 py-3">
-        <select
-          value={member.role}
-          disabled={isPending || isSelf}
-          onChange={(e) => handleRoleChange(e.target.value)}
-          className="input-field"
-        >
-          {ROLES.map((r) => (
-            <option key={r} value={r}>
-              {r}
-            </option>
-          ))}
-        </select>
-        {isSelf && <p className="mt-1 text-xs text-ink-300">Can&apos;t change your own role</p>}
-      </td>
-      <td className="px-4 py-3 text-right">
-        {!isSelf && (
-          <button
-            onClick={handleRemove}
-            disabled={isPending}
-            className="text-xs font-medium text-ink-500 transition hover:text-rose-600 disabled:opacity-50"
-          >
-            Remove
-          </button>
-        )}
-      </td>
-      {error && (
-        <td colSpan={3} className="px-4 pb-2">
-          <p className="text-xs text-rose-600">{error}</p>
+    <>
+      <tr>
+        <td className="px-4 py-3">
+          <p className="font-medium text-ink-900">{member.user.name}</p>
+          <p className="text-xs text-ink-500">{member.user.email}</p>
         </td>
+        <td className="px-4 py-3">
+          <select
+            value={member.role}
+            disabled={isPending || isSelf}
+            onChange={(e) => handleRoleChange(e.target.value)}
+            className="input-field"
+          >
+            {ROLES.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+          {isSelf && <p className="mt-1 text-xs text-ink-300">Can&apos;t change your own role</p>}
+        </td>
+        <td className="px-4 py-3 text-right">
+          {!isSelf && (
+            <button
+              onClick={handleRemove}
+              disabled={isPending}
+              className="text-xs font-medium text-ink-500 transition hover:text-rose-600 disabled:opacity-50"
+            >
+              Remove
+            </button>
+          )}
+        </td>
+      </tr>
+      {/* Its own row, not a 4th <td> tacked onto the row above — that would
+          silently misalign every column to its right instead of showing up
+          on its own line underneath. */}
+      {error && (
+        <tr>
+          <td colSpan={3} className="px-4 pb-2 pt-0">
+            <p className="text-xs text-rose-600">{error}</p>
+          </td>
+        </tr>
       )}
-    </tr>
+    </>
   );
 }
 
@@ -122,7 +129,7 @@ export function AddMemberForm({ orgId }: { orgId: string }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex items-start gap-2">
+    <form onSubmit={handleSubmit} className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-start">
       <div>
         <input
           required
@@ -130,14 +137,14 @@ export function AddMemberForm({ orgId }: { orgId: string }) {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="user@example.com"
-          className="w-56 input-field"
+          className="w-full input-field sm:w-56"
         />
         {error && <p className="mt-1 text-xs text-rose-600">{error}</p>}
       </div>
       <select
         value={role}
         onChange={(e) => setRole(e.target.value as (typeof ROLES)[number])}
-        className="rounded-xl border border-ink-100 bg-surface px-2 py-2 text-sm outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500"
+        className="w-full rounded-xl border border-ink-100 bg-surface px-2 py-2 text-sm outline-none focus:border-accent-500 focus:ring-1 focus:ring-accent-500 sm:w-auto"
       >
         {ROLES.map((r) => (
           <option key={r} value={r}>
@@ -145,20 +152,22 @@ export function AddMemberForm({ orgId }: { orgId: string }) {
           </option>
         ))}
       </select>
-      <button
-        type="submit"
-        disabled={isPending}
-        className="btn-primary"
-      >
-        {isPending ? "Adding…" : "Add"}
-      </button>
-      <button
-        type="button"
-        onClick={() => setOpen(false)}
-        className="px-2 py-2 text-sm font-medium text-ink-500 transition hover:text-ink-700"
-      >
-        Cancel
-      </button>
+      <div className="flex items-center gap-2">
+        <button
+          type="submit"
+          disabled={isPending}
+          className="btn-primary"
+        >
+          {isPending ? "Adding…" : "Add"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="px-2 py-2 text-sm font-medium text-ink-500 transition hover:text-ink-700"
+        >
+          Cancel
+        </button>
+      </div>
     </form>
   );
 }

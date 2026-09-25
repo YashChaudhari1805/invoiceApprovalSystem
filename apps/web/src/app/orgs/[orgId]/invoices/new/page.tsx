@@ -24,7 +24,7 @@ export default async function NewInvoicePage({ params }: { params: { orgId: stri
   const canCreate = currentOrg.role === "ADMIN" || currentOrg.role === "OPERATOR";
 
   return (
-    <div className="mx-auto max-w-3xl px-8 py-8">
+    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-8 sm:py-8">
       <h1 className="mb-6 font-heading text-xl font-semibold tracking-tight text-ink-950">New invoice</h1>
 
       {canCreate ? (

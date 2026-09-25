@@ -42,7 +42,7 @@ export function NewInvoiceForm({ orgId }: { orgId: string }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
           <label className="mb-1.5 block text-sm font-medium text-ink-700">Vendor</label>
           <input

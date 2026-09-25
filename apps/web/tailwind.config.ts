@@ -1,53 +1,58 @@
 import type { Config } from "tailwindcss";
 
+// Every color below resolves through a CSS custom property (see
+// app/globals.css) rather than a fixed hex value, so the whole app can
+// switch theme by flipping one attribute (`<html data-theme="light">`)
+// without touching a single component. `<alpha-value>` is Tailwind's
+// placeholder for opacity modifiers (e.g. `bg-canvas/50`) to keep working —
+// it requires the CSS var to hold space-separated "R G B", not a hex string.
+function themedColor(name: string) {
+  return `rgb(var(--color-${name}) / <alpha-value>)`;
+}
+
 const config: Config = {
   content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
   theme: {
     extend: {
       colors: {
-        // Fixed dark-mode canvas/card tones — separate from the `ink` text
-        // scale below since this app is permanently dark, not a light theme
-        // with a dark variant. Material's own model: canvas is the darkest
-        // layer, surface (cards/sidebar/table) sits one tonal step above it.
-        canvas: "#121016",
-        surface: "#1B1820",
-        "surface-high": "#2B2733", // hover/focus "state layer" — one step lighter than surface
+        canvas: themedColor("canvas"),
+        surface: themedColor("surface"),
+        "surface-high": themedColor("surface-high"), // hover/focus "state layer" — one step lighter than surface
 
-        // Text + border scale. Numeric scale kept for minimal diff against
-        // existing markup, but re-tuned so 950 is the brightest (highest
-        // emphasis) tone and 50 the most recessed, matching how this app
-        // actually consumes the scale (bg-ink-50 = canvas/hover, ink-950 =
-        // headline text) rather than the literal "50=lightest" convention.
+        // Text + border scale. ink-950 is always the *highest emphasis*
+        // tone (headings) and ink-50 the most recessed (hover background) —
+        // what that actually renders as is inverted between themes by the
+        // CSS variables themselves, not by this scale.
         ink: {
-          950: "#F5F2F8", // headings, primary values
-          900: "#E8E3EF", // strong body text
-          700: "#C6BFD1", // default body text
-          500: "#948C9E", // secondary/meta text, labels
-          300: "#6B6478", // lowest-emphasis text
-          100: "#322E3B", // borders, dividers, neutral chip backgrounds
-          50: "#2B2733", // hover/focus background over a surface card
+          950: themedColor("ink-950"),
+          900: themedColor("ink-900"),
+          700: themedColor("ink-700"),
+          500: themedColor("ink-500"),
+          300: themedColor("ink-300"),
+          100: themedColor("ink-100"),
+          50: themedColor("ink-50"),
         },
-        // Primary brand hue — Material's iconic violet, tuned for this app.
+        // Primary brand hue — Material's iconic violet, tuned per theme for contrast.
         accent: {
-          700: "#6D4FE0", // button hover/pressed
-          600: "#7C5CFC", // button fill, default link color
-          500: "#9C86FF", // focus ring/border — brighter, for visibility
-          100: "#2A2340", // dark tonal container (active nav pill, etc.)
-          50: "#211C33",
+          700: themedColor("accent-700"), // button hover/pressed
+          600: themedColor("accent-600"), // button fill, default link color
+          500: themedColor("accent-500"), // focus ring/border
+          100: themedColor("accent-100"), // tonal container (active nav pill, etc.)
+          50: themedColor("accent-50"),
         },
         // Status tonal pairs — "container + on-container", same pattern
         // Material uses for its own status/assist chips.
         mint: {
-          500: "#6FE0A0", // approved: text/icon
-          100: "#16341F", // approved: chip container
+          500: themedColor("mint-500"), // approved: text/icon
+          100: themedColor("mint-100"), // approved: chip container
         },
         amber: {
-          600: "#FFC25C", // in review: text/icon
-          100: "#402D08", // in review: chip container
+          600: themedColor("amber-600"), // in review: text/icon
+          100: themedColor("amber-100"), // in review: chip container
         },
         rose: {
-          600: "#FF8C86", // rejected/error: text/icon
-          100: "#401318", // rejected/error: chip container
+          600: themedColor("rose-600"), // rejected/error: text/icon
+          100: themedColor("rose-100"), // rejected/error: chip container
         },
       },
       fontFamily: {

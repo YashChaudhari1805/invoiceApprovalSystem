@@ -2,17 +2,107 @@
 @tailwind components;
 @tailwind utilities;
 
+/* -----------------------------------------------------------------------
+   Theme tokens.
+
+   Dark is the default and lives on :root with no selector needed — that's
+   what makes dark mode the default even before JS runs (see the inline
+   script in app/layout.tsx, which only ever needs to *add*
+   data-theme="light", never set "dark" explicitly).
+
+   Every value is "R G B" (space-separated, no commas, no rgb() wrapper) so
+   Tailwind's rgb(var(--x) / <alpha-value>) pattern in tailwind.config.ts can
+   still support opacity modifiers like bg-canvas/50.
+
+   Only the *values* differ between themes — every class name in the app
+   (bg-canvas, text-ink-900, bg-accent-600, ...) stays exactly the same.
+   ------------------------------------------------------------------- */
+:root {
+  --color-canvas: 18 16 22;
+  --color-surface: 27 24 32;
+  --color-surface-high: 43 39 51;
+
+  --color-ink-950: 245 242 248;
+  --color-ink-900: 232 227 239;
+  --color-ink-700: 198 191 209;
+  --color-ink-500: 148 140 158;
+  --color-ink-300: 107 100 120;
+  --color-ink-100: 50 46 59;
+  --color-ink-50: 43 39 51;
+
+  --color-accent-700: 109 79 224;
+  --color-accent-600: 124 92 252;
+  --color-accent-500: 156 134 255;
+  --color-accent-100: 42 35 64;
+  --color-accent-50: 33 28 51;
+
+  --color-mint-500: 111 224 160;
+  --color-mint-100: 22 52 31;
+
+  --color-amber-600: 255 194 92;
+  --color-amber-100: 64 45 8;
+
+  --color-rose-600: 255 140 134;
+  --color-rose-100: 64 19 24;
+
+  --color-selection-bg: 42 35 64;
+  --color-selection-fg: 245 242 248;
+  --color-scrollbar-thumb: 50 46 59;
+  --color-scrollbar-thumb-hover: 63 58 74;
+}
+
+/* Light theme — opted into via <html data-theme="light">, set by the
+   inline script in app/layout.tsx (before paint, from localStorage) and by
+   components/theme-toggle.tsx afterward. Tuned for contrast on a white
+   surface rather than just inverting the dark values 1:1 — e.g. the status
+   colors are noticeably darkened here, since mint-500/amber-600/rose-600
+   read fine as light text on a dark chip but fail contrast as text on the
+   light chip backgrounds below. */
+:root[data-theme="light"] {
+  --color-canvas: 247 245 250;
+  --color-surface: 255 255 255;
+  --color-surface-high: 241 237 247;
+
+  --color-ink-950: 26 23 32;
+  --color-ink-900: 46 42 56;
+  --color-ink-700: 82 77 94;
+  --color-ink-500: 122 115 134;
+  --color-ink-300: 167 159 179;
+  --color-ink-100: 228 224 236;
+  --color-ink-50: 241 237 247;
+
+  --color-accent-700: 90 63 196;
+  --color-accent-600: 109 79 224;
+  --color-accent-500: 138 111 240;
+  --color-accent-100: 237 231 251;
+  --color-accent-50: 245 241 253;
+
+  --color-mint-500: 31 157 92;
+  --color-mint-100: 223 247 233;
+
+  --color-amber-600: 181 121 10;
+  --color-amber-100: 252 239 214;
+
+  --color-rose-600: 211 69 62;
+  --color-rose-100: 251 225 223;
+
+  --color-selection-bg: 237 231 251;
+  --color-selection-fg: 26 23 32;
+  --color-scrollbar-thumb: 228 224 236;
+  --color-scrollbar-thumb-hover: 209 203 219;
+}
+
 ::selection {
-  background-color: #2a2340;
-  color: #f5f2f8;
+  background-color: rgb(var(--color-selection-bg));
+  color: rgb(var(--color-selection-fg));
 }
 
 * {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Dark-themed scrollbar so it doesn't flash a default light track over the
-   dark canvas — a small but noticeable detail in a permanently-dark app. */
+/* Themed scrollbar so it never flashes the browser's default light track
+   over a dark canvas, or an unstyled dark one over a light canvas. */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -21,12 +111,12 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background-color: #322e3b;
+  background-color: rgb(var(--color-scrollbar-thumb));
   border-radius: 9999px;
-  border: 2px solid #121016;
+  border: 2px solid rgb(var(--color-canvas));
 }
 ::-webkit-scrollbar-thumb:hover {
-  background-color: #3f3a4a;
+  background-color: rgb(var(--color-scrollbar-thumb-hover));
 }
 
 /* ---------------------------------------------------------------------

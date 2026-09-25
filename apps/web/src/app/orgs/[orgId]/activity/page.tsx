@@ -38,7 +38,7 @@ export default async function ActivityPage({ params }: { params: { orgId: string
   };
 
   return (
-    <div className="mx-auto max-w-3xl px-8 py-8">
+    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-8 sm:py-8">
       <h1 className="mb-6 font-heading text-xl font-semibold tracking-tight text-ink-950">Activity</h1>
 
       {activity.length === 0 ? (
@@ -48,7 +48,7 @@ export default async function ActivityPage({ params }: { params: { orgId: string
           {activity.map((entry) => {
             const describe = LABELS[entry.action] ?? (() => entry.action.toLowerCase().replace(/_/g, " "));
             return (
-              <li key={entry.id} className="flex items-baseline justify-between px-4 py-3 text-sm">
+              <li key={entry.id} className="flex flex-col gap-0.5 px-4 py-3 text-sm sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
                 <span className="text-ink-700">
                   <span className="font-medium text-ink-900">{entry.actor?.name ?? "Someone"}</span>{" "}
                   {describe(entry)}
@@ -64,7 +64,7 @@ export default async function ActivityPage({ params }: { params: { orgId: string
                     </>
                   )}
                 </span>
-                <span className="shrink-0 pl-4 text-xs text-ink-300">
+                <span className="shrink-0 text-xs text-ink-300 sm:pl-4">
                   {new Date(entry.created_at).toLocaleString()}
                 </span>
               </li>

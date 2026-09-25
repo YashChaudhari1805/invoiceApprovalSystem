@@ -232,4 +232,54 @@ describe("GET /orgs/:orgId/invoices", () => {
       expect(body.items).toHaveLength(0);
     });
   });
+
+  describe("GET /orgs/:orgId/invoices/summary", () => {
+    it("counts drafts and in-review invoices for this org", async () => {
+      // Fresh org, seeded with exactly one of each so the counts are exact,
+      // not just "greater than zero" against a shared/reused org.
+      const summaryOrg = await createTestOrg("invoices-summary");
+      try {
+        await app.inject({
+          method: "POST",
+          url: `/orgs/${summaryOrg.orgId}/invoices`,
+          headers: { authorization: `Bearer ${rahulToken}` },
+          payload: validInvoicePayload({ invoiceNumber: `SUMMARY-DRAFT-${Date.now()}` }),
+        });
+        const reviewInvoice = await app.inject({
+          method: "POST",
+          url: `/orgs/${summaryOrg.orgId}/invoices`,
+          headers: { authorization: `Bearer ${rahulToken}` },
+          payload: validInvoicePayload({ invoiceNumber: `SUMMARY-REVIEW-${Date.now()}` }),
+        });
+        await app.inject({
+          method: "POST",
+          url: `/orgs/${summaryOrg.orgId}/invoices/${reviewInvoice.json().id}/transition`,
+          headers: { authorization: `Bearer ${rahulToken}` },
+          payload: { toStatus: "REVIEW" },
+        });
+
+        const res = await app.inject({
+          method: "GET",
+          url: `/orgs/${summaryOrg.orgId}/invoices/summary`,
+          headers: { authorization: `Bearer ${rahulToken}` },
+        });
+        expect(res.statusCode).toBe(200);
+        const body = res.json();
+        expect(body.draft).toBe(1);
+        expect(body.review).toBe(1);
+        expect(body.processedRecently).toBe(0);
+      } finally {
+        await summaryOrg.cleanup();
+      }
+    });
+
+    it("returns 403 for a user with no membership in the org", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: `/orgs/${xyzMetalsId}/invoices/summary`,
+        headers: { authorization: `Bearer ${priyaToken}` },
+      });
+      expect(res.statusCode).toBe(403);
+    });
+  });
 });

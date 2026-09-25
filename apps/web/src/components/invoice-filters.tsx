@@ -67,14 +67,14 @@ export function InvoiceFilters() {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <form onSubmit={handleSearchSubmit} className="flex items-center">
+    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+      <form onSubmit={handleSearchSubmit} className="w-full sm:w-auto">
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search invoice number… (min 4 characters)"
           aria-label="Search invoice number"
-          className="w-56 input-field"
+          className="w-full input-field sm:w-56"
         />
       </form>
 
@@ -83,14 +83,14 @@ export function InvoiceFilters() {
         onChange={(e) => setVendor(e.target.value)}
         placeholder="Filter by vendor…"
         aria-label="Filter by vendor"
-        className="w-48 input-field"
+        className="w-full input-field sm:w-48"
       />
 
       <select
         value={urlStatus}
         onChange={(e) => pushParams({ search, vendor, status: e.target.value })}
         aria-label="Filter by status"
-        className="input-field"
+        className="w-full input-field sm:w-auto"
       >
         {STATUSES.map((s) => (
           <option key={s.value} value={s.value}>

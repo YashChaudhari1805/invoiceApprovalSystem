@@ -41,6 +41,7 @@ interface InvoiceDetail {
   total_amount: string | number;
   created_by: string;
   created_at: string;
+  updated_at: string;
   creator: { id: string; name: string; email: string } | null;
   approver: { id: string; name: string; email: string } | null;
   lineItems: LineItem[];
@@ -94,7 +95,7 @@ export default async function InvoiceDetailPage({
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-8 py-8">
+    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-8 sm:py-8">
       <RevalidateOnFocus />
       <div className="mb-6 flex items-start justify-between">
         <div>
@@ -106,8 +107,24 @@ export default async function InvoiceDetailPage({
           </div>
           <p className="text-sm text-ink-500">{invoice.vendor}</p>
         </div>
-        <InvoiceActions orgId={params.orgId} invoiceId={invoice.id} availableActions={invoice.availableActions} />
       </div>
+
+      {/* Makes the outcome unmissable even if this tab was left open from
+          before someone else acted on it — RevalidateOnFocus above is what
+          pulls the fresh status in; this is what makes the change legible
+          rather than the action buttons just quietly vanishing. */}
+      {invoice.status === "APPROVED" && invoice.approver && (
+        <div className="mb-4 alert-success">
+          Approved by <span className="font-medium">{invoice.approver.name}</span> on{" "}
+          {new Date(invoice.updated_at).toLocaleString()}
+        </div>
+      )}
+      {invoice.status === "REJECTED" && invoice.approver && (
+        <div className="mb-4 alert-error">
+          Rejected by <span className="font-medium">{invoice.approver.name}</span> on{" "}
+          {new Date(invoice.updated_at).toLocaleString()}
+        </div>
+      )}
 
       {canEdit(currentOrg.role, invoice.status) && (
         <div className="mb-4">
@@ -120,7 +137,7 @@ export default async function InvoiceDetailPage({
         </div>
       )}
 
-      <div className="mb-6 grid grid-cols-4 gap-4 card p-4 text-sm">
+      <div className="mb-6 grid grid-cols-2 gap-4 card p-4 text-sm sm:grid-cols-4">
         <div>
           <p className="text-ink-500">Created by</p>
           <p className="mt-0.5 font-medium text-ink-900">{invoice.creator?.name ?? "Unknown"}</p>
@@ -142,8 +159,8 @@ export default async function InvoiceDetailPage({
       </div>
 
       <h2 className="mb-2 text-sm font-medium text-ink-700">Line items</h2>
-      <div className="mb-6 overflow-hidden card">
-        <table className="w-full text-sm">
+      <div className="mb-6 overflow-x-auto card">
+        <table className="w-full min-w-[480px] text-sm">
           <thead>
             <tr className="border-b border-ink-100 bg-ink-50 text-left text-xs font-medium uppercase tracking-wide text-ink-500">
               <th className="px-3 py-2 font-medium">Description</th>
@@ -180,7 +197,7 @@ export default async function InvoiceDetailPage({
       <h2 className="mb-2 text-sm font-medium text-ink-700">Activity</h2>
       <ul className="space-y-3 card p-4">
         {invoice.activity.map((entry) => (
-          <li key={entry.id} className="flex items-baseline justify-between text-sm">
+          <li key={entry.id} className="flex flex-col gap-0.5 text-sm sm:flex-row sm:items-baseline sm:justify-between sm:gap-2">
             <span className="text-ink-700">
               <span className="font-medium text-ink-900">{entry.actor?.name ?? "Someone"}</span>{" "}
               {ACTIVITY_LABELS[entry.action] ?? entry.action.toLowerCase().replace(/_/g, " ")}
@@ -191,6 +208,18 @@ export default async function InvoiceDetailPage({
           </li>
         ))}
       </ul>
+
+      {/* Sticky action footer — stays reachable at the bottom of the
+          viewport rather than scrolling away, per the "decision sandbox"
+          spec. Renders nothing when there's nothing this user can do
+          (wrong status, wrong role, or they're the maker on their own
+          invoice), so it costs no vertical space in those cases. */}
+      <InvoiceActions
+        orgId={params.orgId}
+        invoiceId={invoice.id}
+        invoiceNumber={invoice.invoice_number}
+        availableActions={invoice.availableActions}
+      />
     </div>
   );
 }

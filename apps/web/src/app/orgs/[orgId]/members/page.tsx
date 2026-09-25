@@ -37,8 +37,8 @@ export default async function MembersPage({ params }: { params: { orgId: string 
   };
 
   return (
-    <div className="mx-auto max-w-3xl px-8 py-8">
-      <div className="mb-6 flex items-center justify-between">
+    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-8 sm:py-8">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-heading text-xl font-semibold tracking-tight text-ink-950">Members</h1>
           <p className="mt-0.5 text-sm text-ink-500">{currentOrg.name}</p>
@@ -46,8 +46,8 @@ export default async function MembersPage({ params }: { params: { orgId: string 
         <AddMemberForm orgId={params.orgId} />
       </div>
 
-      <div className="overflow-hidden card">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto card">
+        <table className="w-full min-w-[420px] text-sm">
           <thead>
             <tr className="border-b border-ink-100 text-left text-xs font-medium uppercase tracking-wide text-ink-500">
               <th className="px-4 py-2.5 font-medium">User</th>
