@@ -56,7 +56,9 @@ organizations ──1:N──▶ invoices ──1:N──▶ line_items
 
 ## Why business logic lives in a Postgres function, not just app code
 
-`transition_invoice()` encodes the status-transition whitelist and the maker-checker check once, as a `SECURITY DEFINER` function. Both the Fastify API and (if you ever add it) a direct Supabase client call from the frontend go through the same function, so there's exactly one place these rules can be wrong — instead of having to keep an app-layer check and a database-layer check in sync by hand. Simpler CRUD (create, list, view) is handled by ordinary RLS-protected `SELECT`/`INSERT`, since those don't have enough conditional logic to justify a function.
+`transition_invoice()` encodes the status-transition whitelist and the maker-checker check once, as a `SECURITY DEFINER` function. Both the Fastify API and (if you ever add it) a direct Supabase client call from the frontend go through the same function, so there's exactly one place these rules can be wrong — instead of having to keep an app-layer check and a database-layer check in sync by hand. `transition_invoice()` takes a row lock (`SELECT ... FOR UPDATE`) on the invoice first, so two simultaneous transitions (e.g. Approve vs Reject) are serialized and only one can win — see `0006_transition_row_lock.sql`. Listing and viewing are ordinary RLS-protected `SELECT`s.
+
+**Invoice creation is atomic.** `create_invoice()` (`0007_atomic_create_invoice.sql`) is the single entry point for creating an invoice. In one transaction it checks the caller is an Admin/Operator of the org, validates the line items and computes the totals itself (via the internal helper `compute_invoice_totals()` — exact decimal arithmetic, rounded half-up per line; the API never supplies totals), then inserts the invoice, its line items and the `INVOICE_CREATED` activity entry. If any step fails, everything is rolled back, so an invoice can never exist without its line items and audit entry. Errors use SQLSTATEs the API maps to HTTP codes: `42501` → 403, `22023`/`22003` → 400, `23505` (duplicate vendor + number) → 409.
 
 ## Local setup
 

@@ -23,64 +23,38 @@ export default async function invoiceRoutes(app: FastifyInstance) {
     }
     const { vendor, invoiceNumber, invoiceDate, lineItems } = parsed.data;
 
-    // Totals are always derived server-side — client-submitted amounts, if
-    // any were sent, are ignored entirely by not even accepting them in the schema.
-    const totals = computeInvoiceTotals(lineItems);
-
-    const { data: invoice, error: invoiceError } = await req.supabase
-      .from("invoices")
-      .insert({
-        organization_id: req.membership.organizationId,
-        vendor,
-        invoice_number: invoiceNumber,
-        invoice_date: invoiceDate,
-        taxable_amount: totals.taxableAmount,
-        tax_amount: totals.taxAmount,
-        total_amount: totals.totalAmount,
-        created_by: req.user.userId,
-      })
-      .select()
-      .single();
-
-    if (invoiceError) {
-      // Postgres unique_violation — the (org, vendor, invoice_number)
-      // constraint caught a duplicate, including under concurrent requests.
-      if (invoiceError.code === "23505") {
-        return reply.code(409).send({ error: "An invoice with this vendor and invoice number already exists" });
-      }
-      req.log.error(invoiceError);
-      return reply.code(500).send({ error: "Failed to create invoice" });
-    }
-
-    const { error: lineItemError } = await req.supabase.from("line_items").insert(
-      totals.lineItems.map((li) => ({
-        invoice_id: invoice.id,
-        description: li.description,
-        quantity: li.quantity,
-        rate: li.rate,
-        tax_rate: li.taxRate,
-        amount: li.amount,
-      }))
-    );
-
-    if (lineItemError) {
-      req.log.error(lineItemError);
-      // Best-effort cleanup so a failed line-item insert doesn't leave an
-      // orphaned invoice with no line items behind.
-      await req.supabase.from("invoices").delete().eq("id", invoice.id);
-      return reply.code(500).send({ error: "Failed to save line items" });
-    }
-
-    // Activity log entry for creation (transitions log their own entries via
-    // the transition_invoice RPC; creation isn't a transition, so it's logged here).
-    await req.supabase.from("activity_log").insert({
-      organization_id: req.membership.organizationId,
-      invoice_id: invoice.id,
-      actor_id: req.user.userId,
-      action: "INVOICE_CREATED",
+    // One database call does everything: it re-checks the caller's role in this
+    // org, computes the totals itself from the line items (so no client- or
+    // API-supplied amount is ever trusted), and inserts the invoice, its line
+    // items and the INVOICE_CREATED activity entry in a single transaction. If
+    // any step fails, nothing is saved — see migrations/0007_atomic_create_invoice.sql.
+    const { data, error } = await req.supabase.rpc("create_invoice", {
+      p_organization_id: req.membership.organizationId,
+      p_vendor: vendor,
+      p_invoice_number: invoiceNumber,
+      p_invoice_date: invoiceDate,
+      p_line_items: lineItems,
     });
 
-    return reply.code(201).send({ ...invoice, lineItems: totals.lineItems });
+    if (error) {
+      switch (error.code) {
+        case "23505":
+          // unique (organization_id, vendor, invoice_number) — also what stops
+          // two simultaneous identical requests from both succeeding.
+          return reply.code(409).send({ error: "An invoice with this vendor and invoice number already exists" });
+        case "42501":
+          return reply.code(403).send({ error: "You do not have permission to create invoices" });
+        case "22023":
+          return reply.code(400).send({ error: error.message });
+        case "22003":
+          return reply.code(400).send({ error: "A number on this invoice is too large" });
+        default:
+          req.log.error(error);
+          return reply.code(500).send({ error: "Failed to create invoice" });
+      }
+    }
+
+    return reply.code(201).send(data);
   });
 
   // GET /orgs/:orgId/invoices?search=&vendor=&status=&page=&pageSize=

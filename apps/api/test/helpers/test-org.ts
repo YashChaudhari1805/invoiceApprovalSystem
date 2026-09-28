@@ -84,3 +84,20 @@ export async function createTestOrg(namePrefix: string): Promise<TestOrg> {
     },
   };
 }
+
+// Read-only observation helper for atomicity tests. Counts what is actually
+// persisted for an org via the service-role client, which bypasses RLS — so a
+// leftover row can't be hidden from the assertion by a row-level policy.
+// Never used to drive behavior under test, only to inspect its aftermath.
+export async function countOrgRows(orgId: string) {
+  const [invoices, lineItems, activity] = await Promise.all([
+    admin.from("invoices").select("id", { count: "exact", head: true }).eq("organization_id", orgId),
+    admin
+      .from("line_items")
+      .select("id, invoices!inner(organization_id)", { count: "exact", head: true })
+      .eq("invoices.organization_id", orgId),
+    admin.from("activity_log").select("id", { count: "exact", head: true }).eq("organization_id", orgId),
+  ]);
+  for (const r of [invoices, lineItems, activity]) if (r.error) throw r.error;
+  return { invoices: invoices.count ?? 0, lineItems: lineItems.count ?? 0, activity: activity.count ?? 0 };
+}
