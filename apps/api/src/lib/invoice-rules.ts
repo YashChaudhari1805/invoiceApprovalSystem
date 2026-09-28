@@ -49,6 +49,16 @@ export interface InvoiceTotals {
   totalAmount: number;
 }
 
+// NOTE: no longer what decides stored totals. Invoice totals are computed by
+// the database (compute_invoice_totals() in migrations/0007, used by
+// create_invoice() and update_invoice()) using exact decimal arithmetic, so
+// they can't drift from the stored line items. This floating-point version can
+// differ from it by one paisa on ~1% of inputs (e.g. 259.78 x 3933.75 is
+// exactly 1,021,909.575 -> .58, but the float product rounds down to .57).
+// Do not use it to decide, verify or display a stored total; treat the
+// database's numbers as the truth. Kept only because its unit tests document
+// the intended per-line rounding rules.
+//
 // Rounds to 2 decimal places at the line-item level before summing, to avoid
 // the classic "totals don't match what a human would calculate by hand"
 // floating point drift bug.

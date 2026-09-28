@@ -10,6 +10,22 @@ const API_URL = process.env.API_URL ?? "http://localhost:4000";
 // with a message that says what to check.
 const REQUEST_TIMEOUT_MS = 8000;
 
+// Thrown for any non-2xx response from the API. It's still a plain Error (so
+// existing `err instanceof Error` handling keeps working), but also carries the
+// HTTP status and the API's machine-readable `code`, so callers can react to
+// specific cases — e.g. "VERSION_CONFLICT" when an edit is based on an
+// out-of-date copy of an invoice — without matching on message text.
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+    public code?: string
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 export async function apiFetch(path: string, accessToken: string, init: RequestInit = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -48,7 +64,11 @@ export async function apiFetch(path: string, accessToken: string, init: RequestI
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error ?? `API request to ${path} failed with status ${res.status}`);
+    throw new ApiError(
+      body.error ?? `API request to ${path} failed with status ${res.status}`,
+      res.status,
+      typeof body.code === "string" ? body.code : undefined
+    );
   }
 
   if (res.status === 204) return null;

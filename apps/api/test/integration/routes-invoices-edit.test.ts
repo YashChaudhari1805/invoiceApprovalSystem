@@ -51,6 +51,16 @@ async function createInvoiceAsRahul() {
   return res.json().id as string;
 }
 
+// The version an edit form would have loaded. Every PATCH must send it back.
+async function versionOf(invoiceId: string) {
+  const res = await app.inject({
+    method: "GET",
+    url: `/orgs/${testOrgId}/invoices/${invoiceId}`,
+    headers: { authorization: `Bearer ${rahulToken}` },
+  });
+  return res.json().version as number;
+}
+
 async function transition(invoiceId: string, toStatus: string, token: string) {
   return app.inject({
     method: "POST",
@@ -68,6 +78,7 @@ describe("PATCH /orgs/:orgId/invoices/:invoiceId", () => {
       url: `/orgs/${testOrgId}/invoices/${invoiceId}`,
       headers: { authorization: `Bearer ${rahulToken}` },
       payload: {
+        version: await versionOf(invoiceId),
         vendor: "Updated Vendor Name",
         lineItems: [{ description: "New Widget", quantity: 3, rate: 50, taxRate: 10 }],
       },
@@ -84,7 +95,7 @@ describe("PATCH /orgs/:orgId/invoices/:invoiceId", () => {
       method: "PATCH",
       url: `/orgs/${testOrgId}/invoices/${invoiceId}`,
       headers: { authorization: `Bearer ${yashToken}` },
-      payload: { vendor: "Should Not Work" },
+      payload: { version: await versionOf(invoiceId), vendor: "Should Not Work" },
     });
     expect(res.statusCode).toBe(403);
   });
@@ -98,7 +109,7 @@ describe("PATCH /orgs/:orgId/invoices/:invoiceId", () => {
       method: "PATCH",
       url: `/orgs/${testOrgId}/invoices/${invoiceId}`,
       headers: { authorization: `Bearer ${rahulToken}` },
-      payload: { vendor: "Post-Approval Admin Edit" },
+      payload: { version: await versionOf(invoiceId), vendor: "Post-Approval Admin Edit" },
     });
     expect(res.statusCode).toBe(200);
   });
@@ -118,7 +129,7 @@ describe("PATCH /orgs/:orgId/invoices/:invoiceId", () => {
       method: "PATCH",
       url: `/orgs/${testOrgId}/invoices/${secondId}`,
       headers: { authorization: `Bearer ${rahulToken}` },
-      payload: { vendor, invoiceNumber: invoice_number },
+      payload: { version: await versionOf(secondId), vendor, invoiceNumber: invoice_number },
     });
     expect(res.statusCode).toBe(409);
   });
@@ -128,7 +139,7 @@ describe("PATCH /orgs/:orgId/invoices/:invoiceId", () => {
     const res = await app.inject({
       method: "PATCH",
       url: `/orgs/${testOrgId}/invoices/${invoiceId}`,
-      payload: { vendor: "Still Editable", status: "APPROVED" },
+      payload: { version: await versionOf(invoiceId), vendor: "Still Editable", status: "APPROVED" },
       headers: { authorization: `Bearer ${rahulToken}` },
     });
     expect(res.statusCode).toBe(200); // the vendor update succeeds

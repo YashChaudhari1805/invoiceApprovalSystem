@@ -16,6 +16,7 @@ interface InvoiceDetail {
   invoice_number: string;
   invoice_date: string;
   status: string;
+  version: number;
   lineItems: { description: string; quantity: string | number; rate: string | number; tax_rate: string | number }[];
 }
 
@@ -62,7 +63,13 @@ export default async function EditInvoicePage({
       <h1 className="mb-6 font-heading text-xl font-semibold tracking-tight text-ink-950">
         Edit {invoice.invoice_number}
       </h1>
+      {/* keyed on version: when the user chooses "Reload latest" after a
+          conflict, the page re-renders with the newer version, the key changes,
+          and the form remounts with the fresh values instead of keeping the
+          stale ones in its state. */}
       <EditInvoiceForm
+        key={invoice.version}
+        version={invoice.version}
         orgId={params.orgId}
         invoiceId={invoice.id}
         initialVendor={invoice.vendor}

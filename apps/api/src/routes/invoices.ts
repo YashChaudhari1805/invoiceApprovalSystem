@@ -1,5 +1,5 @@
 import { FastifyInstance } from "fastify";
-import { computeInvoiceTotals, can, canEditInvoice } from "../lib/invoice-rules";
+import { can } from "../lib/invoice-rules";
 import { escapeLikePattern } from "../lib/search";
 import {
   createInvoiceSchema,
@@ -188,104 +188,65 @@ export default async function invoiceRoutes(app: FastifyInstance) {
   });
 
   // PATCH /orgs/:orgId/invoices/:invoiceId
-  // Admin can edit regardless of status; Operator only while Draft/Review
-  // (see canEditInvoice). The DB backs this up independently via the
-  // UPDATE policy + column-level grants in migration 0004, so this app-level
-  // check is a nicer error message, not the only thing standing guard.
+  // Body: { version, vendor?, invoiceNumber?, invoiceDate?, lineItems? }
+  // where `version` is the invoice version the client originally loaded.
+  //
+  // Everything happens in one update_invoice() database call (see
+  // migrations/0008_atomic_edit_and_optimistic_locking.sql): the version
+  // check, the permission check (Admin any status; Operator only while
+  // Draft/Review), the header update, replacing the line items, recomputing
+  // the totals and the activity entry — all in a single transaction, so a
+  // failure part-way leaves the previous invoice exactly as it was. The
+  // permission rule is deliberately checked there, against the locked row,
+  // rather than in a separate read here that could go stale before the write.
   app.patch("/orgs/:orgId/invoices/:invoiceId", { preHandler }, async (req, reply) => {
     const { invoiceId } = req.params as { invoiceId: string };
-
-    const { data: existing, error: fetchError } = await req.supabase
-      .from("invoices")
-      .select("id, status, created_by")
-      .eq("id", invoiceId)
-      .eq("organization_id", req.membership.organizationId)
-      .maybeSingle();
-
-    if (fetchError) {
-      req.log.error(fetchError);
-      return reply.code(500).send({ error: "Failed to load invoice" });
-    }
-    if (!existing) {
-      return reply.code(404).send({ error: "Invoice not found" });
-    }
-    if (!canEditInvoice({ role: req.membership.role, status: existing.status })) {
-      return reply.code(403).send({
-        error:
-          existing.status === "APPROVED" || existing.status === "REJECTED"
-            ? "This invoice can no longer be edited"
-            : "You do not have permission to edit this invoice",
-      });
-    }
 
     const parsed = updateInvoiceSchema.safeParse(req.body);
     if (!parsed.success) {
       return reply.code(400).send({ error: "Invalid input", details: parsed.error.flatten() });
     }
-    const { vendor, invoiceNumber, invoiceDate, lineItems } = parsed.data;
+    const { version, vendor, invoiceNumber, invoiceDate, lineItems } = parsed.data;
 
-    const updates: Record<string, unknown> = {};
-    if (vendor !== undefined) updates.vendor = vendor;
-    if (invoiceNumber !== undefined) updates.invoice_number = invoiceNumber;
-    if (invoiceDate !== undefined) updates.invoice_date = invoiceDate;
-
-    let computedLineItems;
-    if (lineItems !== undefined) {
-      const totals = computeInvoiceTotals(lineItems);
-      updates.taxable_amount = totals.taxableAmount;
-      updates.tax_amount = totals.taxAmount;
-      updates.total_amount = totals.totalAmount;
-      computedLineItems = totals.lineItems;
-    }
-
-    const { data: updated, error: updateError } = await req.supabase
-      .from("invoices")
-      .update(updates)
-      .eq("id", invoiceId)
-      .select()
-      .single();
-
-    if (updateError) {
-      if (updateError.code === "23505") {
-        return reply.code(409).send({ error: "An invoice with this vendor and invoice number already exists" });
-      }
-      req.log.error(updateError);
-      return reply.code(500).send({ error: "Failed to update invoice" });
-    }
-
-    if (computedLineItems) {
-      // Replace-all is simpler and safer than diffing add/remove/change for
-      // a take-home's scope, and line items have no identity outside their
-      // invoice that anything else references.
-      const { error: deleteError } = await req.supabase.from("line_items").delete().eq("invoice_id", invoiceId);
-      if (deleteError) {
-        req.log.error(deleteError);
-        return reply.code(500).send({ error: "Failed to update line items" });
-      }
-      const { error: insertError } = await req.supabase.from("line_items").insert(
-        computedLineItems.map((li) => ({
-          invoice_id: invoiceId,
-          description: li.description,
-          quantity: li.quantity,
-          rate: li.rate,
-          tax_rate: li.taxRate,
-          amount: li.amount,
-        }))
-      );
-      if (insertError) {
-        req.log.error(insertError);
-        return reply.code(500).send({ error: "Failed to update line items" });
-      }
-    }
-
-    await req.supabase.from("activity_log").insert({
-      organization_id: req.membership.organizationId,
-      invoice_id: invoiceId,
-      actor_id: req.user.userId,
-      action: "INVOICE_EDITED",
+    // Only fields the client actually sent are included (undefined keys are
+    // dropped by JSON serialization), so status — or anything else not listed
+    // here — can never ride along in the patch.
+    const { data, error } = await req.supabase.rpc("update_invoice", {
+      p_organization_id: req.membership.organizationId,
+      p_invoice_id: invoiceId,
+      p_expected_version: version,
+      p_patch: { vendor, invoiceNumber, invoiceDate, lineItems },
     });
 
-    return reply.send({ ...updated, lineItems: computedLineItems });
+    if (error) {
+      switch (error.code) {
+        case "PT409":
+          // Optimistic-lock conflict: someone else changed this invoice after
+          // the client loaded it. `code` lets the UI tell this apart from the
+          // duplicate-invoice 409 below and offer a refresh.
+          return reply.code(409).send({ error: error.message, code: "VERSION_CONFLICT" });
+        case "23505":
+          return reply
+            .code(409)
+            .send({ error: "An invoice with this vendor and invoice number already exists", code: "DUPLICATE_INVOICE" });
+        case "P0002":
+          return reply.code(404).send({ error: "Invoice not found" });
+        case "42501":
+          return reply.code(403).send({ error: error.message });
+        case "22023":
+          return reply.code(400).send({ error: error.message });
+        case "22007":
+        case "22008":
+          return reply.code(400).send({ error: "Invalid invoice date" });
+        case "22003":
+          return reply.code(400).send({ error: "A number on this invoice is too large" });
+        default:
+          req.log.error(error);
+          return reply.code(500).send({ error: "Failed to update invoice" });
+      }
+    }
+
+    return reply.send(data);
   });
 
   // POST /orgs/:orgId/invoices/:invoiceId/transition

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, ApiError } from "@/lib/api";
 
 interface LineItemInput {
   description: string;
@@ -37,11 +37,19 @@ export async function createInvoiceAction(
   }
 }
 
+// `version` is the invoice version the edit form originally loaded. The API
+// rejects the save with a conflict if the invoice has changed since, instead of
+// silently overwriting the other person's changes.
 export async function updateInvoiceAction(
   orgId: string,
   invoiceId: string,
-  payload: Partial<{ vendor: string; invoiceNumber: string; invoiceDate: string; lineItems: LineItemInput[] }>
-): Promise<{ error?: string }> {
+  payload: { version: number } & Partial<{
+    vendor: string;
+    invoiceNumber: string;
+    invoiceDate: string;
+    lineItems: LineItemInput[];
+  }>
+): Promise<{ error?: string; conflict?: boolean }> {
   try {
     const token = await getAccessToken();
     await apiFetch(`/orgs/${orgId}/invoices/${invoiceId}`, token, {
@@ -52,6 +60,9 @@ export async function updateInvoiceAction(
     revalidatePath(`/orgs/${orgId}/invoices`);
     return {};
   } catch (err) {
+    if (err instanceof ApiError && err.status === 409 && err.code === "VERSION_CONFLICT") {
+      return { error: err.message, conflict: true };
+    }
     return { error: err instanceof Error ? err.message : "Failed to update invoice" };
   }
 }

@@ -14,7 +14,12 @@ export const createInvoiceSchema = z.object({
   lineItems: z.array(lineItemInputSchema).min(1, "At least one line item is required"),
 });
 
+// `version` is the invoice version the client originally loaded (optimistic
+// locking). It is required: an edit that doesn't say which version it is based
+// on can't be checked for staleness, so it would silently overwrite whatever
+// another user saved in the meantime.
 export const updateInvoiceSchema = createInvoiceSchema.partial().extend({
+  version: z.number().int().positive(),
   lineItems: z.array(lineItemInputSchema).min(1).optional(),
 });
 

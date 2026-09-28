@@ -14,6 +14,7 @@ interface ExistingLineItem {
 }
 
 export function EditInvoiceForm({
+  version,
   orgId,
   invoiceId,
   initialVendor,
@@ -21,6 +22,7 @@ export function EditInvoiceForm({
   initialInvoiceDate,
   initialLineItems,
 }: {
+  version: number;
   orgId: string;
   invoiceId: string;
   initialVendor: string;
@@ -42,11 +44,15 @@ export function EditInvoiceForm({
     }))
   );
   const [error, setError] = useState<string | null>(null);
+  // True when the save was rejected because someone else changed the invoice
+  // after this form loaded it (optimistic-lock conflict).
+  const [conflict, setConflict] = useState(false);
   const [showLineItemErrors, setShowLineItemErrors] = useState(false);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setConflict(false);
 
     const lineItemsError = getLineItemsError(lineItems);
     if (lineItemsError) {
@@ -57,6 +63,7 @@ export function EditInvoiceForm({
     setShowLineItemErrors(false);
 
     const payload = {
+      version,
       vendor,
       invoiceNumber,
       invoiceDate,
@@ -70,6 +77,10 @@ export function EditInvoiceForm({
 
     startTransition(async () => {
       const result = await updateInvoiceAction(orgId, invoiceId, payload);
+      if (result.conflict) {
+        setConflict(true);
+        return;
+      }
       if (result.error) {
         setError(result.error);
         return;
@@ -117,6 +128,18 @@ export function EditInvoiceForm({
         <LineItemsEditor items={lineItems} onChange={setLineItems} showErrors={showLineItemErrors} />
       </div>
 
+      {conflict && (
+        <div role="alert" className="alert-error space-y-2">
+          <p>This invoice was changed by another user. Refresh before saving again.</p>
+          <button
+            type="button"
+            onClick={() => router.refresh()}
+            className="text-sm font-medium underline underline-offset-2"
+          >
+            Reload latest version (discards your unsaved changes)
+          </button>
+        </div>
+      )}
       {error && <p className="alert-error">{error}</p>}
 
       <div className="flex items-center gap-3">
