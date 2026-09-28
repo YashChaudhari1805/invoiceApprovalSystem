@@ -346,6 +346,9 @@ export default async function invoiceRoutes(app: FastifyInstance) {
       if (/invalid status transition/i.test(message)) {
         return reply.code(400).send({ error: message });
       }
+      if (/status changed by another request/i.test(message)) {
+        return reply.code(409).send({ error: message });
+      }
       req.log.error(error);
       return reply.code(500).send({ error: "Failed to update invoice status" });
     }

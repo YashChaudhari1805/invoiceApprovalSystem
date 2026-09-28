@@ -15,16 +15,16 @@ async function loginAs(email: string) {
 
 const app = buildApp({ logger: false });
 let rahulToken: string; // Admin @ test org
-let priyaToken: string; // Reviewer @ test org — cannot edit at all
+let yashToken: string; // Reviewer @ test org — cannot edit at all
 let testOrgId: string;
 let cleanupTestOrg: () => Promise<void>;
 
 beforeAll(async () => {
   await app.ready();
   const rahul = await loginAs("rahul@example.com");
-  const priya = await loginAs("priya@example.com");
+  const yash = await loginAs("yash@example.com");
   rahulToken = rahul.token;
-  priyaToken = priya.token;
+  yashToken = yash.token;
 
   const testOrg = await createTestOrg("invoices-edit");
   testOrgId = testOrg.orgId;
@@ -83,7 +83,7 @@ describe("PATCH /orgs/:orgId/invoices/:invoiceId", () => {
     const res = await app.inject({
       method: "PATCH",
       url: `/orgs/${testOrgId}/invoices/${invoiceId}`,
-      headers: { authorization: `Bearer ${priyaToken}` },
+      headers: { authorization: `Bearer ${yashToken}` },
       payload: { vendor: "Should Not Work" },
     });
     expect(res.statusCode).toBe(403);
@@ -92,7 +92,7 @@ describe("PATCH /orgs/:orgId/invoices/:invoiceId", () => {
   it("Admin can still edit an Approved invoice (per spec, Admin is unrestricted)", async () => {
     const invoiceId = await createInvoiceAsRahul();
     await transition(invoiceId, "REVIEW", rahulToken);
-    await transition(invoiceId, "APPROVED", priyaToken); // Priya approves since Rahul created it
+    await transition(invoiceId, "APPROVED", yashToken); // Yash approves since Rahul created it
 
     const res = await app.inject({
       method: "PATCH",

@@ -15,7 +15,7 @@ async function loginAs(email: string) {
 
 const app = buildApp({ logger: false });
 let rahulToken: string;
-let priyaToken: string;
+let yashToken: string;
 let testOrgId: string;
 let xyzMetalsId: string; // real seeded org — used only for negative tests that never write data
 let cleanupTestOrg: () => Promise<void>;
@@ -23,9 +23,9 @@ let cleanupTestOrg: () => Promise<void>;
 beforeAll(async () => {
   await app.ready();
   const rahul = await loginAs("rahul@example.com");
-  const priya = await loginAs("priya@example.com");
+  const yash = await loginAs("yash@example.com");
   rahulToken = rahul.token;
-  priyaToken = priya.token;
+  yashToken = yash.token;
 
   const testOrg = await createTestOrg("invoices-create-list");
   testOrgId = testOrg.orgId;
@@ -146,11 +146,11 @@ describe("GET /orgs/:orgId/invoices", () => {
     }
   });
 
-  it("Priya (no membership at XYZ Metals) gets 403 listing invoices there", async () => {
+  it("Yash (no membership at XYZ Metals) gets 403 listing invoices there", async () => {
     const res = await app.inject({
       method: "GET",
       url: `/orgs/${xyzMetalsId}/invoices`,
-      headers: { authorization: `Bearer ${priyaToken}` },
+      headers: { authorization: `Bearer ${yashToken}` },
     });
     expect(res.statusCode).toBe(403);
   });
@@ -277,7 +277,7 @@ describe("GET /orgs/:orgId/invoices", () => {
       const res = await app.inject({
         method: "GET",
         url: `/orgs/${xyzMetalsId}/invoices/summary`,
-        headers: { authorization: `Bearer ${priyaToken}` },
+        headers: { authorization: `Bearer ${yashToken}` },
       });
       expect(res.statusCode).toBe(403);
     });

@@ -17,6 +17,35 @@ const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 // behavior under test — that always goes through the app/RLS-scoped clients.
 const admin = createClient(url, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
 
+// A second Reviewer, on top of Yash, that exists purely for concurrency
+// tests that need two *different* non-creator reviewers acting on the same
+// invoice at once (e.g. Approve vs Reject) — Yash alone isn't enough for
+// that since one request needs to come from someone other than him too.
+// Created lazily via the admin client the first time a test asks for it, so
+// it never has to be part of the demo-facing `npm run seed` data.
+export const TEST_REVIEWER_EMAIL = "test-reviewer@example.com";
+export const TEST_REVIEWER_PASSWORD = "password123";
+
+async function ensureTestReviewer(): Promise<string> {
+  const { data: existing } = await admin.from("profiles").select("id").eq("email", TEST_REVIEWER_EMAIL).maybeSingle();
+  if (existing) return existing.id;
+
+  const { data, error } = await admin.auth.admin.createUser({
+    email: TEST_REVIEWER_EMAIL,
+    password: TEST_REVIEWER_PASSWORD,
+    email_confirm: true,
+    user_metadata: { name: "Test Reviewer" },
+  });
+  if (error) {
+    // Lost a race with another test file/worker creating the same user
+    // concurrently — just look it up instead of failing.
+    const { data: raced } = await admin.from("profiles").select("id").eq("email", TEST_REVIEWER_EMAIL).maybeSingle();
+    if (raced) return raced.id;
+    throw error;
+  }
+  return data.user.id;
+}
+
 export interface TestOrg {
   orgId: string;
   cleanup: () => Promise<void>;
@@ -24,10 +53,11 @@ export interface TestOrg {
 
 export async function createTestOrg(namePrefix: string): Promise<TestOrg> {
   const { data: rahul } = await admin.from("profiles").select("id").eq("email", "rahul@example.com").single();
-  const { data: priya } = await admin.from("profiles").select("id").eq("email", "priya@example.com").single();
-  if (!rahul || !priya) {
+  const { data: yash } = await admin.from("profiles").select("id").eq("email", "yash@example.com").single();
+  if (!rahul || !yash) {
     throw new Error("Seed users not found — run `npm run seed` before running tests.");
   }
+  const testReviewerId = await ensureTestReviewer();
 
   const slug = `${namePrefix}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const { data: org, error: orgError } = await admin
@@ -39,7 +69,8 @@ export async function createTestOrg(namePrefix: string): Promise<TestOrg> {
 
   const { error: memError } = await admin.from("memberships").insert([
     { user_id: rahul.id, organization_id: org.id, role: "ADMIN" },
-    { user_id: priya.id, organization_id: org.id, role: "REVIEWER" },
+    { user_id: yash.id, organization_id: org.id, role: "REVIEWER" },
+    { user_id: testReviewerId, organization_id: org.id, role: "REVIEWER" },
   ]);
   if (memError) throw memError;
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createClient } from "@supabase/supabase-js";
 import { buildApp } from "../../src/app";
-import { createTestOrg } from "../helpers/test-org";
+import { createTestOrg, TEST_REVIEWER_EMAIL } from "../helpers/test-org";
 
 const url = process.env.SUPABASE_URL!;
 const anonKey = process.env.SUPABASE_ANON_KEY!;
@@ -15,20 +15,25 @@ async function loginAs(email: string) {
 
 const app = buildApp({ logger: false });
 let rahulToken: string;
-let priyaToken: string;
+let yashToken: string;
+let testReviewerToken: string;
 let testOrgId: string;
 let cleanupTestOrg: () => Promise<void>;
 
 beforeAll(async () => {
   await app.ready();
   const rahul = await loginAs("rahul@example.com");
-  const priya = await loginAs("priya@example.com");
+  const yash = await loginAs("yash@example.com");
   rahulToken = rahul.token;
-  priyaToken = priya.token;
+  yashToken = yash.token;
 
   const testOrg = await createTestOrg("invoices-detail-transition");
   testOrgId = testOrg.orgId;
   cleanupTestOrg = testOrg.cleanup;
+
+  // Logged in last, after createTestOrg() has made sure this user exists.
+  const testReviewer = await loginAs(TEST_REVIEWER_EMAIL);
+  testReviewerToken = testReviewer.token;
 });
 
 afterAll(async () => {
@@ -36,11 +41,11 @@ afterAll(async () => {
   await app.close();
 });
 
-async function createInvoiceAsRahul() {
+async function createInvoiceAs(token: string) {
   const res = await app.inject({
     method: "POST",
     url: `/orgs/${testOrgId}/invoices`,
-    headers: { authorization: `Bearer ${rahulToken}` },
+    headers: { authorization: `Bearer ${token}` },
     payload: {
       vendor: "Detail Test Vendor",
       invoiceNumber: `DETAIL-TEST-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -50,6 +55,10 @@ async function createInvoiceAsRahul() {
   });
   expect(res.statusCode).toBe(201);
   return res.json().id as string;
+}
+
+async function createInvoiceAsRahul() {
+  return createInvoiceAs(rahulToken);
 }
 
 describe("GET /orgs/:orgId/invoices/:invoiceId", () => {
@@ -164,7 +173,7 @@ describe("POST /orgs/:orgId/invoices/:invoiceId/transition", () => {
     expect(res.statusCode).toBe(403);
   });
 
-  it("allows Priya (a different Reviewer) to approve Rahul's invoice", async () => {
+  it("allows Yash (a different Reviewer) to approve Rahul's invoice", async () => {
     const invoiceId = await createInvoiceAsRahul();
     await app.inject({
       method: "POST",
@@ -176,7 +185,7 @@ describe("POST /orgs/:orgId/invoices/:invoiceId/transition", () => {
     const res = await app.inject({
       method: "POST",
       url: `/orgs/${testOrgId}/invoices/${invoiceId}/transition`,
-      headers: { authorization: `Bearer ${priyaToken}` },
+      headers: { authorization: `Bearer ${yashToken}` },
       payload: { toStatus: "APPROVED" },
     });
     expect(res.statusCode).toBe(200);
@@ -192,5 +201,69 @@ describe("POST /orgs/:orgId/invoices/:invoiceId/transition", () => {
       payload: { toStatus: "NOT_A_REAL_STATUS" },
     });
     expect(res.statusCode).toBe(400);
+  });
+
+  // Race condition: two eligible reviewers (neither of whom created the
+  // invoice) fire Approve and Reject at essentially the same instant. Only
+  // one transition may win; the loser must fail cleanly rather than either
+  // silently overwriting the winner or leaving the row in a mixed state.
+  // Regression test for the fix in migrations/0006_transition_row_lock.sql
+  // (transition_invoice() now takes SELECT ... FOR UPDATE on the invoice
+  // row before checking the transition whitelist).
+  it("Approve and Reject fired concurrently: exactly one wins, the other is rejected, final state is consistent", async () => {
+    // Rahul (Admin) creates and submits it. Yash and the test reviewer are
+    // both Reviewers who did not create it, so both are eligible to decide
+    // it — and Reviewers can't create invoices, so neither can be the maker.
+    const invoiceId = await createInvoiceAs(rahulToken);
+    const submitRes = await app.inject({
+      method: "POST",
+      url: `/orgs/${testOrgId}/invoices/${invoiceId}/transition`,
+      headers: { authorization: `Bearer ${rahulToken}` },
+      payload: { toStatus: "REVIEW" },
+    });
+    expect(submitRes.statusCode).toBe(200);
+
+    // Fired together with Promise.all, not awaited one after another, so
+    // both requests are genuinely in flight against the database at once.
+    const [approveRes, rejectRes] = await Promise.all([
+      app.inject({
+        method: "POST",
+        url: `/orgs/${testOrgId}/invoices/${invoiceId}/transition`,
+        headers: { authorization: `Bearer ${yashToken}` },
+        payload: { toStatus: "APPROVED" },
+      }),
+      app.inject({
+        method: "POST",
+        url: `/orgs/${testOrgId}/invoices/${invoiceId}/transition`,
+        headers: { authorization: `Bearer ${testReviewerToken}` },
+        payload: { toStatus: "REJECTED" },
+      }),
+    ]);
+
+    // Exactly one request must succeed and the other must be rejected —
+    // never both 200 (double-write), never both non-200 (the valid
+    // transition got wrongly blocked).
+    const codes = [approveRes.statusCode, rejectRes.statusCode].sort((a, b) => a - b);
+    expect(codes).toEqual([200, 400]);
+
+    const winner = approveRes.statusCode === 200 ? approveRes : rejectRes;
+    const finalStatus = winner.json().status;
+    expect(["APPROVED", "REJECTED"]).toContain(finalStatus);
+
+    // The invoice itself must reflect exactly that one decision — no
+    // half-applied mix of both attempts.
+    const detail = await app.inject({
+      method: "GET",
+      url: `/orgs/${testOrgId}/invoices/${invoiceId}`,
+      headers: { authorization: `Bearer ${rahulToken}` },
+    });
+    expect(detail.json().status).toBe(finalStatus);
+
+    // Exactly one APPROVED/REJECTED activity entry — the losing attempt
+    // must not have logged an entry for a transition that never took effect.
+    const decisionEntries = detail
+      .json()
+      .activity.filter((a: any) => a.action === "INVOICE_APPROVED" || a.action === "INVOICE_REJECTED");
+    expect(decisionEntries).toHaveLength(1);
   });
 });

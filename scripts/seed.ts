@@ -4,8 +4,17 @@
 //
 // Idempotent: safe to run against a project that's already (partially)
 // seeded. Users, organizations, and memberships are looked up / upserted
-// instead of blindly inserted, and the sample invoices are only created
-// once per organization (skipped entirely if that org already has any).
+// instead of blindly inserted, and the sample invoices for a given org are
+// only created once (skipped entirely if that org already has any).
+//
+// NOTE on Priya: earlier versions of this script created priya@example.com
+// as ABC Steel's Reviewer. She has been retired in favor of Yash (see
+// below) — this script no longer creates her. If your database was seeded
+// by an older version of this script, her profile/auth user will still
+// exist until removed by hand (or via `supabase db reset` on a project you
+// don't mind wiping) — this script does not delete existing users, since
+// she may still be referenced by invoices' `approved_by` column via a
+// foreign key that would need those invoices reassigned or removed first.
 
 import { createClient } from "@supabase/supabase-js";
 import * as dotenv from "dotenv";
@@ -91,117 +100,152 @@ async function ensureMembership(userId: string, organizationId: string, role: st
   if (error) throw error;
 }
 
+// Totals are computed by hand here the same way apps/api/src/lib/invoice-rules.ts
+// computes them at request time (round each line to 2dp, then sum) — kept in
+// sync manually since this script intentionally has no dependency on the API
+// package.
+type SeedLineItem = { description: string; quantity: number; rate: number; taxRate: number };
+type SeedStatus = "DRAFT" | "REVIEW" | "APPROVED" | "REJECTED";
+
+function computeTotals(lineItems: SeedLineItem[]) {
+  let taxableAmount = 0;
+  let taxAmount = 0;
+  const rows = lineItems.map((li) => {
+    const lineTaxable = Math.round(li.quantity * li.rate * 100) / 100;
+    const lineTax = Math.round(lineTaxable * (li.taxRate / 100) * 100) / 100;
+    taxableAmount += lineTaxable;
+    taxAmount += lineTax;
+    return { ...li, amount: Math.round((lineTaxable + lineTax) * 100) / 100 };
+  });
+  taxableAmount = Math.round(taxableAmount * 100) / 100;
+  taxAmount = Math.round(taxAmount * 100) / 100;
+  return { rows, taxableAmount, taxAmount, totalAmount: Math.round((taxableAmount + taxAmount) * 100) / 100 };
+}
+
+async function createInvoice(params: {
+  organizationId: string;
+  vendor: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  status: SeedStatus;
+  createdBy: string;
+  approvedBy?: string;
+  lineItems: SeedLineItem[];
+}) {
+  const totals = computeTotals(params.lineItems);
+  const { data: invoice, error: invErr } = await admin
+    .from("invoices")
+    .insert({
+      organization_id: params.organizationId,
+      vendor: params.vendor,
+      invoice_number: params.invoiceNumber,
+      invoice_date: params.invoiceDate,
+      status: params.status,
+      taxable_amount: totals.taxableAmount,
+      tax_amount: totals.taxAmount,
+      total_amount: totals.totalAmount,
+      created_by: params.createdBy,
+      approved_by: params.approvedBy ?? null,
+    })
+    .select()
+    .single();
+  if (invErr) throw invErr;
+
+  const { error: liErr } = await admin.from("line_items").insert(
+    totals.rows.map((li) => ({
+      invoice_id: invoice.id,
+      description: li.description,
+      quantity: li.quantity,
+      rate: li.rate,
+      tax_rate: li.taxRate,
+      amount: li.amount,
+    }))
+  );
+  if (liErr) throw liErr;
+
+  // Seed a matching activity_log entry so the invoice's history isn't
+  // empty — mirrors what the real API writes on each action.
+  const actionByStatus: Record<SeedStatus, "INVOICE_CREATED" | "INVOICE_APPROVED" | "INVOICE_REJECTED"> = {
+    DRAFT: "INVOICE_CREATED",
+    REVIEW: "INVOICE_CREATED",
+    APPROVED: "INVOICE_APPROVED",
+    REJECTED: "INVOICE_REJECTED",
+  };
+  await admin.from("activity_log").insert({
+    organization_id: params.organizationId,
+    invoice_id: invoice.id,
+    actor_id: params.approvedBy ?? params.createdBy,
+    action: actionByStatus[params.status],
+    metadata: { seed: true },
+  });
+
+  return invoice;
+}
+
+async function orgAlreadyHasInvoices(organizationId: string): Promise<boolean> {
+  const { count, error } = await admin
+    .from("invoices")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", organizationId);
+  if (error) throw error;
+  return !!count && count > 0;
+}
+
 async function main() {
   console.log("Creating users...");
   const rahulId = await createUser("rahul@example.com", "Rahul");
-  const priyaId = await createUser("priya@example.com", "Priya");
+  // Replaces Priya as ABC Steel's Reviewer, and is separately Admin of his
+  // own org (Yash Textiles) below — same pattern as Rahul holding different
+  // roles in different orgs on the same account.
+  const yashId = await createUser("yash@example.com", "Yash");
+  const nehaId = await createUser("neha@example.com", "Neha");
+  const arjunId = await createUser("arjun@example.com", "Arjun");
+  const meeraId = await createUser("meera@example.com", "Meera");
+  const karanId = await createUser("karan@example.com", "Karan");
 
   console.log("Creating organizations...");
   const abcSteel = await getOrCreateOrg("ABC Steel", "abc-steel");
   const xyzMetals = await getOrCreateOrg("XYZ Metals", "xyz-metals");
+  const yashTextiles = await getOrCreateOrg("Yash Textiles", "yash-textiles");
+  const coastalLogistics = await getOrCreateOrg("Coastal Logistics", "coastal-logistics");
+  const meeraExports = await getOrCreateOrg("Meera Exports", "meera-exports");
+  const sunriseTraders = await getOrCreateOrg("Sunrise Traders", "sunrise-traders");
 
   console.log("Creating memberships...");
+  // ABC Steel — same narrative as before, with Yash now standing in for
+  // Priya as the org's Reviewer (maker-checker: Rahul creates, Yash decides).
   await ensureMembership(rahulId, abcSteel.id, "ADMIN");
   await ensureMembership(rahulId, xyzMetals.id, "VIEWER");
-  await ensureMembership(priyaId, abcSteel.id, "REVIEWER");
+  await ensureMembership(yashId, abcSteel.id, "REVIEWER");
+
+  // Yash Textiles — Yash's own org, where he's Admin. Neha is the Reviewer
+  // who approves/rejects what Yash creates (maker-checker requires someone
+  // other than Yash). Arjun is an Operator so there's a third role present.
+  await ensureMembership(yashId, yashTextiles.id, "ADMIN");
+  await ensureMembership(nehaId, yashTextiles.id, "REVIEWER");
+  await ensureMembership(arjunId, yashTextiles.id, "OPERATOR");
+
+  // A handful of smaller orgs so there are 6 total and several users belong
+  // to more than one, the way real multi-tenant accounts look.
+  await ensureMembership(arjunId, coastalLogistics.id, "ADMIN");
+  await ensureMembership(meeraId, coastalLogistics.id, "REVIEWER");
+
+  await ensureMembership(meeraId, meeraExports.id, "ADMIN");
+  await ensureMembership(karanId, meeraExports.id, "OPERATOR");
+  await ensureMembership(nehaId, meeraExports.id, "REVIEWER");
+
+  await ensureMembership(karanId, sunriseTraders.id, "ADMIN");
+  await ensureMembership(rahulId, sunriseTraders.id, "VIEWER");
 
   console.log("Creating sample invoices...");
-  // One invoice in each status, so a reviewer opening the app for the first
-  // time sees the full workflow immediately instead of empty screens. Totals
-  // are computed by hand here the same way apps/api/src/lib/invoice-rules.ts
-  // computes them at request time (round each line to 2dp, then sum) — kept
-  // in sync manually since this script intentionally has no dependency on
-  // the API package.
-  type SeedLineItem = { description: string; quantity: number; rate: number; taxRate: number };
 
-  function computeTotals(lineItems: SeedLineItem[]) {
-    let taxableAmount = 0;
-    let taxAmount = 0;
-    const rows = lineItems.map((li) => {
-      const lineTaxable = Math.round(li.quantity * li.rate * 100) / 100;
-      const lineTax = Math.round(lineTaxable * (li.taxRate / 100) * 100) / 100;
-      taxableAmount += lineTaxable;
-      taxAmount += lineTax;
-      return { ...li, amount: Math.round((lineTaxable + lineTax) * 100) / 100 };
-    });
-    taxableAmount = Math.round(taxableAmount * 100) / 100;
-    taxAmount = Math.round(taxAmount * 100) / 100;
-    return { rows, taxableAmount, taxAmount, totalAmount: Math.round((taxableAmount + taxAmount) * 100) / 100 };
-  }
-
-  async function createInvoice(params: {
-    vendor: string;
-    invoiceNumber: string;
-    invoiceDate: string;
-    status: "DRAFT" | "REVIEW" | "APPROVED" | "REJECTED";
-    createdBy: string;
-    approvedBy?: string;
-    lineItems: SeedLineItem[];
-  }) {
-    const totals = computeTotals(params.lineItems);
-    const { data: invoice, error: invErr } = await admin
-      .from("invoices")
-      .insert({
-        organization_id: abcSteel.id,
-        vendor: params.vendor,
-        invoice_number: params.invoiceNumber,
-        invoice_date: params.invoiceDate,
-        status: params.status,
-        taxable_amount: totals.taxableAmount,
-        tax_amount: totals.taxAmount,
-        total_amount: totals.totalAmount,
-        created_by: params.createdBy,
-        approved_by: params.approvedBy ?? null,
-      })
-      .select()
-      .single();
-    if (invErr) throw invErr;
-
-    const { error: liErr } = await admin.from("line_items").insert(
-      totals.rows.map((li) => ({
-        invoice_id: invoice.id,
-        description: li.description,
-        quantity: li.quantity,
-        rate: li.rate,
-        tax_rate: li.taxRate,
-        amount: li.amount,
-      }))
-    );
-    if (liErr) throw liErr;
-
-    // Seed a matching activity_log entry so the invoice's history isn't
-    // empty — mirrors what the real API writes on each action.
-    const actionByStatus = {
-      DRAFT: "INVOICE_CREATED",
-      REVIEW: "INVOICE_CREATED",
-      APPROVED: "INVOICE_APPROVED",
-      REJECTED: "INVOICE_REJECTED",
-    } as const;
-    await admin.from("activity_log").insert({
-      organization_id: abcSteel.id,
-      invoice_id: invoice.id,
-      actor_id: params.approvedBy ?? params.createdBy,
-      action: actionByStatus[params.status],
-      metadata: { seed: true },
-    });
-
-    return invoice;
-  }
-
-  // Sample invoices are only meaningful the first time — if ABC Steel
-  // already has any, assume a previous run already created them (re-running
-  // would also fail on the (org, vendor, invoice_number) unique constraint,
-  // but skipping up front gives a clearer message than a raw 23505).
-  const { count: existingInvoiceCount, error: countError } = await admin
-    .from("invoices")
-    .select("id", { count: "exact", head: true })
-    .eq("organization_id", abcSteel.id);
-  if (countError) throw countError;
-
-  if (existingInvoiceCount && existingInvoiceCount > 0) {
-    console.log(`  ABC Steel already has ${existingInvoiceCount} invoice(s) — skipping sample invoice creation`);
+  // ABC Steel: unchanged narrative — one invoice in each status — except
+  // the two decided ones are now approved/rejected by Yash instead of Priya.
+  if (await orgAlreadyHasInvoices(abcSteel.id)) {
+    console.log("  ABC Steel already has invoices — skipping sample invoice creation");
   } else {
     await createInvoice({
+      organizationId: abcSteel.id,
       vendor: "Tata Metals",
       invoiceNumber: "TM-1001",
       invoiceDate: "2026-08-20",
@@ -211,6 +255,7 @@ async function main() {
     });
 
     await createInvoice({
+      organizationId: abcSteel.id,
       vendor: "Atlantis Supplies",
       invoiceNumber: "6789",
       invoiceDate: "2026-08-25",
@@ -223,30 +268,108 @@ async function main() {
     });
 
     await createInvoice({
+      organizationId: abcSteel.id,
       vendor: "XYZ Fabricators",
       invoiceNumber: "XYZ-2201",
       invoiceDate: "2026-08-10",
       status: "APPROVED",
       createdBy: rahulId,
-      approvedBy: priyaId, // maker-checker: Priya approves what Rahul created
+      approvedBy: yashId, // maker-checker: Yash approves what Rahul created
       lineItems: [{ description: "Galvanized pipe, 3-inch", quantity: 60, rate: 420, taxRate: 12 }],
     });
 
     await createInvoice({
+      organizationId: abcSteel.id,
       vendor: "Global Ironworks",
       invoiceNumber: "GI-0087",
       invoiceDate: "2026-08-05",
       status: "REJECTED",
       createdBy: rahulId,
-      approvedBy: priyaId,
+      approvedBy: yashId,
       lineItems: [{ description: "Duplicate delivery — billed in error", quantity: 1, rate: 12500, taxRate: 18 }],
     });
   }
 
+  // Yash Textiles: the bulk demo dataset — 24 invoices spread evenly across
+  // all four statuses, so pagination, search, filtering, and the org's
+  // summary widgets all have real, varied data to show. Yash creates every
+  // one of them (he's the org's Admin, acting as maker here); Neha decides
+  // the ones that have left Review, exactly as the maker-checker rule
+  // requires (approver can never be the creator).
+  if (await orgAlreadyHasInvoices(yashTextiles.id)) {
+    console.log("  Yash Textiles already has invoices — skipping sample invoice creation");
+  } else {
+    const vendors = [
+      "Ganges Textile Mills",
+      "Rajesh Dyeing Works",
+      "Om Sai Fabrics",
+      "Surat Silk Traders",
+      "Bharat Cotton Corp",
+      "Vinayak Weaving Co",
+      "Shree Ram Textiles",
+      "Indus Garment Supplies",
+    ];
+    const descriptions = [
+      "Cotton yarn, 40s count",
+      "Polyester blend fabric, 60-inch width",
+      "Dyeing and finishing services",
+      "Printed fabric roll, 100m",
+      "Embroidery work, per piece",
+      "Denim fabric, 12oz",
+      "Silk saree material, per meter",
+      "Packing and freight",
+    ];
+    const taxRates = [5, 12, 18];
+
+    // 6 in each status, 24 total.
+    const plan: { status: SeedStatus; decided: boolean }[] = [
+      ...Array(6).fill({ status: "DRAFT" as const, decided: false }),
+      ...Array(6).fill({ status: "REVIEW" as const, decided: false }),
+      ...Array(6).fill({ status: "APPROVED" as const, decided: true }),
+      ...Array(6).fill({ status: "REJECTED" as const, decided: true }),
+    ];
+
+    for (let i = 0; i < plan.length; i++) {
+      const { status, decided } = plan[i];
+      const vendor = vendors[i % vendors.length];
+      const quantity = 10 + ((i * 7) % 40); // varies 10-49
+      const rate = 150 + ((i * 53) % 900); // varies 150-1049
+      const taxRate = taxRates[i % taxRates.length];
+      // Spread invoice dates across the second half of 2026.
+      const day = 1 + (i % 28);
+      const month = 3 + (i % 6); // March .. August
+      const invoiceDate = `2026-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+
+      await createInvoice({
+        organizationId: yashTextiles.id,
+        vendor,
+        invoiceNumber: `YT-${2001 + i}`,
+        invoiceDate,
+        status,
+        createdBy: yashId,
+        approvedBy: decided ? nehaId : undefined,
+        lineItems: [
+          { description: descriptions[i % descriptions.length], quantity, rate, taxRate },
+          { description: "Freight and handling", quantity: 1, rate: 500 + (i % 5) * 100, taxRate },
+        ],
+      });
+    }
+  }
+
   console.log("\nSeed complete.");
-  console.log("Login as rahul@example.com or priya@example.com, password: password123");
-  console.log(`ABC Steel org id: ${abcSteel.id}`);
+  console.log("Users (all password: password123):");
+  console.log("  rahul@example.com   - Admin @ ABC Steel, Viewer @ XYZ Metals & Sunrise Traders");
+  console.log("  yash@example.com    - Reviewer @ ABC Steel, Admin @ Yash Textiles");
+  console.log("  neha@example.com    - Reviewer @ Yash Textiles & Meera Exports");
+  console.log("  arjun@example.com   - Operator @ Yash Textiles, Admin @ Coastal Logistics");
+  console.log("  meera@example.com   - Reviewer @ Coastal Logistics, Admin @ Meera Exports");
+  console.log("  karan@example.com   - Operator @ Meera Exports, Admin @ Sunrise Traders");
+  console.log(`\nABC Steel org id: ${abcSteel.id}`);
   console.log(`XYZ Metals org id: ${xyzMetals.id}`);
+  console.log(`Yash Textiles org id: ${yashTextiles.id} (24 sample invoices, 6 per status)`);
+  console.log(`Coastal Logistics org id: ${coastalLogistics.id}`);
+  console.log(`Meera Exports org id: ${meeraExports.id}`);
+  console.log(`Sunrise Traders org id: ${sunriseTraders.id}`);
 }
 
 main()

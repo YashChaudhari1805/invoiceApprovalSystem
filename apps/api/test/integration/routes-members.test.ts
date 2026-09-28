@@ -18,20 +18,20 @@ const app = buildApp({ logger: false });
 const admin = createClient(url, serviceRoleKey, { auth: { autoRefreshToken: false, persistSession: false } });
 
 let rahulToken: string; // Admin @ test org
-let priyaToken: string; // Reviewer @ test org — not allowed to manage members
+let yashToken: string; // Reviewer @ test org — not allowed to manage members
 let testOrgId: string;
 let cleanupTestOrg: () => Promise<void>;
 
 // A disposable user created fresh for this test file, added to and removed
 // from the test org over the course of the tests, then deleted entirely in
-// afterAll — this file doesn't touch Rahul/Priya's own memberships at all.
+// afterAll — this file doesn't touch Rahul/Yash's own memberships at all.
 let tempUserEmail: string;
 let tempUserId: string;
 
 beforeAll(async () => {
   await app.ready();
   rahulToken = await loginAs("rahul@example.com");
-  priyaToken = await loginAs("priya@example.com");
+  yashToken = await loginAs("yash@example.com");
 
   const testOrg = await createTestOrg("members");
   testOrgId = testOrg.orgId;
@@ -62,14 +62,14 @@ describe("GET /orgs/:orgId/members", () => {
       headers: { authorization: `Bearer ${rahulToken}` },
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json().members.length).toBeGreaterThanOrEqual(2); // Rahul + Priya at minimum
+    expect(res.json().members.length).toBeGreaterThanOrEqual(2); // Rahul + Yash at minimum
   });
 
-  it("Reviewer (Priya) is forbidden from viewing the members screen", async () => {
+  it("Reviewer (Yash) is forbidden from viewing the members screen", async () => {
     const res = await app.inject({
       method: "GET",
       url: `/orgs/${testOrgId}/members`,
-      headers: { authorization: `Bearer ${priyaToken}` },
+      headers: { authorization: `Bearer ${yashToken}` },
     });
     expect(res.statusCode).toBe(403);
   });
@@ -111,7 +111,7 @@ describe("POST /orgs/:orgId/members", () => {
     const res = await app.inject({
       method: "POST",
       url: `/orgs/${testOrgId}/members`,
-      headers: { authorization: `Bearer ${priyaToken}` },
+      headers: { authorization: `Bearer ${yashToken}` },
       payload: { email: tempUserEmail, role: "VIEWER" },
     });
     expect(res.statusCode).toBe(403);

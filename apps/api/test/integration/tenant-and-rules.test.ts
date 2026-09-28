@@ -1,4 +1,4 @@
-// These tests hit your REAL Supabase project as Rahul and Priya (the seeded
+// These tests hit your REAL Supabase project as Rahul and Yash (the seeded
 // users) — no mocking. They verify the database layer itself (RLS policies +
 // transition_invoice function) enforces the rules, independent of whatever
 // the Fastify API code does or doesn't check. This is deliberate: if these
@@ -25,13 +25,13 @@ async function loginAs(email: string): Promise<SupabaseClient> {
 }
 
 let rahul: SupabaseClient; // Admin @ ABC Steel, Viewer @ XYZ Metals
-let priya: SupabaseClient; // Reviewer @ ABC Steel
+let yash: SupabaseClient; // Reviewer @ ABC Steel
 let abcSteelId: string; // real seeded org — used only where nothing gets written
 let xyzMetalsId: string;
 
 beforeAll(async () => {
   rahul = await loginAs("rahul@example.com");
-  priya = await loginAs("priya@example.com");
+  yash = await loginAs("yash@example.com");
 
   const { data: orgs } = await rahul.from("organizations").select("id, slug");
   abcSteelId = orgs!.find((o) => o.slug === "abc-steel")!.id;
@@ -47,10 +47,10 @@ describe("tenant isolation (RLS)", () => {
   });
 
   it("a user cannot read invoices from an org they don't belong to", async () => {
-    // Priya only belongs to ABC Steel. Even asking directly for XYZ Metals'
+    // Yash has no membership at XYZ Metals. Even asking directly for XYZ Metals'
     // invoices by organization_id, RLS should return nothing — not an error,
     // just zero rows, because the policy filters at the row level.
-    const { data, error } = await priya
+    const { data, error } = await yash
       .from("invoices")
       .select("id")
       .eq("organization_id", xyzMetalsId);
@@ -59,7 +59,7 @@ describe("tenant isolation (RLS)", () => {
   });
 
   it("a user cannot insert an invoice into an org they don't belong to", async () => {
-    const { error } = await priya.from("invoices").insert({
+    const { error } = await yash.from("invoices").insert({
       organization_id: xyzMetalsId,
       vendor: "Test Vendor",
       invoice_number: `RLS-TEST-${Date.now()}`,
@@ -67,7 +67,7 @@ describe("tenant isolation (RLS)", () => {
       taxable_amount: 100,
       tax_amount: 18,
       total_amount: 118,
-      created_by: (await priya.auth.getUser()).data.user!.id,
+      created_by: (await yash.auth.getUser()).data.user!.id,
     });
     expect(error).not.toBeNull(); // RLS policy should reject this insert
   });
@@ -139,8 +139,8 @@ describe("maker-checker + workflow (transition_invoice RPC)", () => {
     expect(error!.message).toMatch(/cannot approve or reject an invoice you created/i);
   });
 
-  it("allows Priya (a different Reviewer) to approve it", async () => {
-    const { data, error } = await priya.rpc("transition_invoice", {
+  it("allows Yash (a different Reviewer) to approve it", async () => {
+    const { data, error } = await yash.rpc("transition_invoice", {
       p_invoice_id: invoiceId,
       p_to_status: "APPROVED",
     });
@@ -149,7 +149,7 @@ describe("maker-checker + workflow (transition_invoice RPC)", () => {
   });
 
   it("rejects an invalid transition out of a terminal state", async () => {
-    const { error } = await priya.rpc("transition_invoice", {
+    const { error } = await yash.rpc("transition_invoice", {
       p_invoice_id: invoiceId,
       p_to_status: "REVIEW",
     });
