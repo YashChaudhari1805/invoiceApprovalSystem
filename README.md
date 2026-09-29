@@ -20,6 +20,18 @@ Every org-scoped request passes through, in order: **authenticate** (verifies th
 
 Row Level Security policies in Postgres are a second, independent enforcement layer underneath the API -- even a bug in the Fastify layer can't leak data across tenants or bypass maker-checker, because the database itself refuses those operations. See `SCHEMA.md` for the full data model and `PLAN.md` for the original architecture writeup.
 
+### Why the SECURITY DEFINER functions are safe to expose
+
+All of the database's business-logic functions (`create_invoice`, `update_invoice`, `transition_invoice`, `add_org_member`, `update_member_role`, `remove_org_member`) are `SECURITY DEFINER`: they run with the privileges of the function owner, not the calling user, which is what lets a normal `authenticated` user -- who has no direct table privilege to do so (see "Direct writes are locked down" in `SCHEMA.md`) -- create an invoice or add a member. That extra power is exactly why each one is written narrowly and reviewed against a short checklist:
+
+1. **Every one of them re-derives the caller's identity and permissions from scratch**, using `auth.uid()` and `current_role_in_org()` -- never a client-supplied user id or role. A caller cannot claim to be someone else or claim a role they don't hold; the function looks it up itself, on every call.
+2. **Every one of them pins an explicit `search_path`** (`set search_path = public`, added for the two pre-existing functions that lacked it in `0011_security_definer_hardening.sql`). Without this, a `SECURITY DEFINER` function resolves unqualified names using the *caller's* session state, and Postgres always checks a session's temporary schema first regardless of `search_path` -- so any authenticated user could otherwise create a same-named temporary table (e.g. a fake `memberships`) and have a privileged function silently read from or write to it instead of the real table. Pinning `search_path` closes that.
+3. **Every one of them does exactly one narrowly-scoped business operation** -- create an invoice, edit an invoice, transition an invoice's status, or manage one membership -- and nothing else. None of them accept a table name, column name, or arbitrary SQL from the caller; every input is a plain scalar or a `jsonb` payload whose shape is validated inside the function before it touches a table (see `compute_invoice_totals()`'s validation, reused by both `create_invoice` and `update_invoice`).
+4. **Every write they make is inside their own transaction**, including the matching `activity_log` entry (see "Make audit history reliable" in `SCHEMA.md`) -- so exposing them doesn't create a way to make a change without a corresponding audit trail.
+5. **The two test-only functions** (`test_create_invoice_with_broken_audit`, and the always-installed-but-inert `test_activity_log_boom` trigger it drives) are `revoke`d from `public`/`anon`/`authenticated` and only `grant`ed to `service_role` -- a privilege level the running API never uses (it always calls Postgres as `authenticated`, via the caller's own JWT; see `apps/api/src/plugins/auth.ts`) and which is never issued to a browser. They exist purely so the integration suite can prove certain rollback behavior against a real database.
+
+Everything else (`compute_invoice_totals`, `bump_invoice_version`, `set_updated_at`) is a plain helper or trigger function, not `SECURITY DEFINER`, and runs with the calling role's own (already-checked) privileges.
+
 ## Setup
 
 ### 1. Create a Supabase project
