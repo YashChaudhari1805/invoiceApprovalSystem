@@ -65,6 +65,22 @@ organizations ──1:N──▶ invoices ──1:N──▶ line_items
 
 **Direct writes are locked down (0009_lockdown_and_audit.sql).** `authenticated` no longer has any table/column privilege to INSERT into `activity_log`, UPDATE any column of `invoices` (not just totals — the whole header, since edits go through `update_invoice()` now), or INSERT/UPDATE/DELETE `line_items` directly. All of that is now reachable only through the SECURITY DEFINER functions, which are unaffected by these revokes because they run as the function owner. Member management (`add_org_member()`, `update_member_role()`, `remove_org_member()`) follows the same pattern: the membership write and its `MEMBER_ADDED`/`MEMBER_ROLE_CHANGED`/`MEMBER_REMOVED` activity entry happen in one transaction, and the by-email lookup for adding a member happens inside the function (bypassing the "profiles visible within shared orgs" RLS policy, since the target isn't a member yet), so the API no longer needs the service-role client for this at all. `transition_invoice()` now also records the old status, not just the new one (`{"from": ..., "to": ...}`), and `update_invoice()` records which fields were part of the edit (`{"changedFields": [...]}`). A test-only function, `test_create_invoice_with_broken_audit()`, lets the integration suite prove the audit insert and the business write share a transaction; it's restricted to `service_role`, which the running API never uses, and its failure is scoped to its own transaction (via a transaction-local `set_config`) so it's safe to run alongside other tests hitting the same database concurrently.
 
+**Numeric and text validation is enforced at three layers (section 8, "defense in depth")** — the browser (`apps/web/src/components/line-items-editor.tsx`), the API (`apps/api/src/modules/invoices/schemas.ts`, zod), and the database (`compute_invoice_totals()` procedurally since 0007, plus CHECK constraints since `0010_numeric_and_length_constraints.sql`). The rule, the same at all three:
+| Field | Rule |
+|---|---|
+| `quantity` | greater than 0 |
+| `rate` | 0 or greater (0 is allowed — e.g. a free sample line) |
+| `tax_rate` | 0 to 100 inclusive |
+| `vendor` | 1-255 characters |
+| `invoice_number` | 1-100 characters |
+| line item `description` | 1-500 characters |
+
+The browser copy previously required `rate > 0`, stricter than the API and database (which both allow 0) — an inconsistency in the opposite direction from the reported "browser allowed quantity 0" bug. It also didn't check `tax_rate` at all client-side. Both are fixed as of `0010`.
+
+**Business rule: editing a Rejected invoice.** Admins can still edit an invoice in any status, including Approved or Rejected (e.g. to correct a mistake before resubmitting) — this was already true of the pre-existing RLS policy and is carried over unchanged into `update_invoice()`. Operators can only edit while a invoice is Draft or Review; once it's Approved or Rejected, only an Admin can touch it. Reviewers and Viewers can never edit.
+
+**Business rule: future-dated invoices.** `invoice_date` has no upper or lower bound beyond being a valid date — a future-dated invoice (e.g. dated for an upcoming billing period) is allowed, since nothing in the assignment or the vendor-invoice domain suggests every invoice must be dated in the past. This is a decision documented here per section 12's checklist item, not a change in behavior.
+
 ## Local setup
 
 ```bash

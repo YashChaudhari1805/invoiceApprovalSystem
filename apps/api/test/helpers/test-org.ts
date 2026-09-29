@@ -126,3 +126,23 @@ export async function createInvoiceWithBrokenAudit(
     p_line_items: lineItems,
   });
 }
+
+// TEST-ONLY, service-role only: attempts a direct INSERT into line_items,
+// bypassing every application-layer check (zod in the API,
+// compute_invoice_totals()'s procedural checks) so tests can prove the
+// database's own CHECK constraints (migrations/0010_numeric_and_length_constraints.sql)
+// hold as an independent backstop, not just "the app happens not to send
+// bad values".
+export async function insertLineItemDirect(
+  invoiceId: string,
+  fields: Partial<{ description: string; quantity: number; rate: number; taxRate: number }>
+) {
+  return admin.from("line_items").insert({
+    invoice_id: invoiceId,
+    description: fields.description ?? "direct-insert-test",
+    quantity: fields.quantity ?? 1,
+    rate: fields.rate ?? 10,
+    tax_rate: fields.taxRate ?? 0,
+    amount: 10,
+  });
+}

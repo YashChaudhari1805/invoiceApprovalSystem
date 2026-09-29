@@ -27,15 +27,29 @@ interface LineItemFieldErrors {
   description?: string;
   quantity?: string;
   rate?: string;
+  taxRate?: string;
 }
 
-// Previously a line item with a missing description or a 0/negative
-// quantity or rate would silently compute a ₹0.00 amount and only surface
-// as a rejection after hitting submit. This flags it inline, at the field
-// level, before the user ever gets that far.
+// The validation rule, in one place, matching the API's zod schema
+// (apps/api/src/modules/invoices/schemas.ts) and the database CHECK
+// constraints (migrations/0010_numeric_and_length_constraints.sql):
+//   quantity must be > 0, rate must be >= 0, tax rate must be 0-100,
+//   description must be non-blank and at most 500 characters.
+//
+// Previously this required rate > 0, which was actually STRICTER than the
+// API (rate: z.number().nonnegative(), i.e. 0 allowed — a free sample line
+// is a real line item) and the database — an inconsistency between layers
+// in the opposite direction from the reported bug. Tax rate wasn't checked
+// here at all, only by the API: a tax rate over 100% (or negative) would
+// silently compute a wrong-looking amount and only surface as a rejection
+// after hitting submit. Both are fixed here.
 function lineItemErrors(li: LineItemDraft): LineItemFieldErrors {
   const errors: LineItemFieldErrors = {};
-  if (!li.description.trim()) errors.description = "Required";
+  if (!li.description.trim()) {
+    errors.description = "Required";
+  } else if (li.description.length > 500) {
+    errors.description = "Must be 500 characters or fewer";
+  }
 
   const qty = Number(li.quantity);
   if (li.quantity.trim() === "" || Number.isNaN(qty) || qty <= 0) {
@@ -43,8 +57,13 @@ function lineItemErrors(li: LineItemDraft): LineItemFieldErrors {
   }
 
   const rate = Number(li.rate);
-  if (li.rate.trim() === "" || Number.isNaN(rate) || rate <= 0) {
-    errors.rate = "Must be greater than 0";
+  if (li.rate.trim() === "" || Number.isNaN(rate) || rate < 0) {
+    errors.rate = "Cannot be negative";
+  }
+
+  const taxRate = Number(li.taxRate);
+  if (li.taxRate.trim() === "" || Number.isNaN(taxRate) || taxRate < 0 || taxRate > 100) {
+    errors.taxRate = "Must be between 0 and 100";
   }
 
   return errors;
@@ -60,7 +79,7 @@ export function getLineItemsError(items: LineItemDraft[]): string | null {
   if (items.length === 0) return "Add at least one line item.";
   const invalidIndex = items.findIndex((li) => Object.keys(lineItemErrors(li)).length > 0);
   if (invalidIndex !== -1) {
-    return `Line item ${invalidIndex + 1} needs a description, a quantity greater than 0, and a rate greater than 0.`;
+    return `Line item ${invalidIndex + 1} needs a description, a quantity greater than 0, a non-negative rate, and a tax rate between 0 and 100.`;
   }
   return null;
 }
@@ -120,6 +139,7 @@ export function LineItemsEditor({
                       value={item.description}
                       onChange={(e) => update(i, "description", e.target.value)}
                       placeholder="Item description"
+                      maxLength={500}
                       aria-invalid={!!errors.description}
                       className={fieldClass(errors.description)}
                     />
@@ -153,11 +173,14 @@ export function LineItemsEditor({
                     <input
                       type="number"
                       min="0"
+                      max="100"
                       step="any"
                       value={item.taxRate}
                       onChange={(e) => update(i, "taxRate", e.target.value)}
-                      className="w-full rounded border-0 bg-transparent px-1 py-1 text-right text-sm outline-none focus:bg-ink-50"
+                      aria-invalid={!!errors.taxRate}
+                      className={`w-full text-right ${fieldClass(errors.taxRate)}`}
                     />
+                    {errors.taxRate && <p className="text-right text-xs text-rose-600">{errors.taxRate}</p>}
                   </td>
                   <td className="px-3 py-1.5 text-right align-top text-ink-700">
                     {lineAmount(item).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
@@ -197,6 +220,7 @@ export function LineItemsEditor({
                   onChange={(e) => update(i, "description", e.target.value)}
                   placeholder="Item description"
                   aria-label="Description"
+                  maxLength={500}
                   aria-invalid={!!errors.description}
                   className={`w-full rounded border-0 bg-transparent px-1 py-1 text-sm font-medium outline-none focus:bg-ink-50 ${
                     errors.description ? "bg-rose-100/60 text-rose-600" : "text-ink-900"
@@ -251,11 +275,16 @@ export function LineItemsEditor({
                 <input
                   type="number"
                   min="0"
+                  max="100"
                   step="any"
                   value={item.taxRate}
                   onChange={(e) => update(i, "taxRate", e.target.value)}
-                  className="mt-0.5 w-full input-field px-2 py-1 text-right text-sm"
+                  aria-invalid={!!errors.taxRate}
+                  className={`mt-0.5 w-full input-field px-2 py-1 text-right text-sm ${
+                    errors.taxRate ? "border-rose-600 text-rose-600" : ""
+                  }`}
                 />
+                {errors.taxRate && <p className="mt-0.5 text-[10px] text-rose-600">{errors.taxRate}</p>}
               </label>
             </div>
             <p className="mt-2 text-right text-sm text-ink-700">

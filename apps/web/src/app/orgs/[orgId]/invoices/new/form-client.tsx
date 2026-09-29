@@ -61,6 +61,7 @@ export function NewInvoiceForm({ orgId }: { orgId: string }) {
           <label className="mb-1.5 block text-sm font-medium text-ink-700">Vendor</label>
           <input
             required
+            maxLength={255}
             value={vendor}
             onChange={(e) => setVendor(e.target.value)}
             className="w-full input-field"
@@ -70,6 +71,7 @@ export function NewInvoiceForm({ orgId }: { orgId: string }) {
           <label className="mb-1.5 block text-sm font-medium text-ink-700">Invoice number</label>
           <input
             required
+            maxLength={100}
             value={invoiceNumber}
             onChange={(e) => setInvoiceNumber(e.target.value)}
             className="w-full input-field"
