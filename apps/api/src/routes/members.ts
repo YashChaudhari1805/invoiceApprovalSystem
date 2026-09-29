@@ -1,6 +1,5 @@
 import { FastifyInstance } from "fastify";
 import { can } from "../lib/invoice-rules";
-import { getSupabaseAdmin } from "../lib/supabase";
 import { addMemberSchema, updateMemberRoleSchema } from "../modules/members/schemas";
 
 export default async function memberRoutes(app: FastifyInstance) {
@@ -34,7 +33,16 @@ export default async function memberRoutes(app: FastifyInstance) {
     return reply.send({ members: data });
   });
 
-  // POST /orgs/:orgId/members — add an existing user (by email) to this org
+  // POST /orgs/:orgId/members — add an existing user (by email) to this org.
+  //
+  // The membership insert and its MEMBER_ADDED activity entry now happen
+  // together inside add_org_member() (see
+  // migrations/0009_lockdown_and_audit.sql), instead of as two separate
+  // client calls: one fewer place a partial write could happen, and the
+  // by-email lookup (which needs to see a profile the caller isn't
+  // otherwise allowed to see under RLS, since the target isn't a member of
+  // this org yet) happens inside that SECURITY DEFINER function rather than
+  // requiring the API to reach for the raw admin/service-role client.
   app.post("/orgs/:orgId/members", { preHandler }, async (req, reply) => {
     if (!requireAdmin(req, reply)) return;
 
@@ -44,60 +52,34 @@ export default async function memberRoutes(app: FastifyInstance) {
     }
     const { email, role } = parsed.data;
 
-    // Looking up a user by email has to use the admin client: the caller's
-    // RLS-scoped client can only see profiles of people who already share
-    // an org with them, which by definition excludes someone not yet
-    // added — a chicken-and-egg problem inherent to invite flows. The admin
-    // client is used ONLY for this read; the actual membership insert below
-    // still goes through the caller's own RLS-scoped client, so "can this
-    // admin actually add members to this org" is still enforced by the
-    // `memberships manageable by admins` policy, not bypassed.
-    const { data: targetUser, error: lookupError } = await getSupabaseAdmin()
-      .from("profiles")
-      .select("id, name, email")
-      .eq("email", email)
-      .maybeSingle();
-
-    if (lookupError) {
-      req.log.error(lookupError);
-      return reply.code(500).send({ error: "Failed to look up user" });
-    }
-    if (!targetUser) {
-      return reply.code(404).send({ error: "No user found with that email. They must sign up first." });
-    }
-
-    const { data: membership, error: insertError } = await req.supabase
-      .from("memberships")
-      .insert({
-        user_id: targetUser.id,
-        organization_id: req.membership.organizationId,
-        role,
-      })
-      .select("id, role, created_at, user:profiles(id, name, email)")
-      .single();
-
-    if (insertError) {
-      if (insertError.code === "23505") {
-        return reply.code(409).send({ error: "This user is already a member of this organization" });
-      }
-      req.log.error(insertError);
-      return reply.code(500).send({ error: "Failed to add member" });
-    }
-
-    await req.supabase.from("activity_log").insert({
-      organization_id: req.membership.organizationId,
-      actor_id: req.user.userId,
-      action: "MEMBER_ADDED",
-      metadata: { targetUserId: targetUser.id, role },
+    const { data, error } = await req.supabase.rpc("add_org_member", {
+      p_organization_id: req.membership.organizationId,
+      p_email: email,
+      p_role: role,
     });
 
-    return reply.code(201).send(membership);
+    if (error) {
+      switch (error.code) {
+        case "P0002":
+          return reply.code(404).send({ error: "No user found with that email. They must sign up first." });
+        case "23505":
+          return reply.code(409).send({ error: "This user is already a member of this organization" });
+        case "42501":
+          return reply.code(403).send({ error: "Only Admins can manage organization members" });
+        case "22023":
+          return reply.code(400).send({ error: error.message });
+        default:
+          req.log.error(error);
+          return reply.code(500).send({ error: "Failed to add member" });
+      }
+    }
+
+    return reply.code(201).send(data);
   });
 
   // PATCH /orgs/:orgId/members/:membershipId — change a member's role.
-  // This updates the existing membership row, never touches the User/
-  // profiles account itself (per spec: "should update the membership
-  // without recreating the user account").
+  // update_member_role() does the lookup, the self-demotion check, the
+  // update and the MEMBER_ROLE_CHANGED entry in one transaction.
   app.patch("/orgs/:orgId/members/:membershipId", { preHandler }, async (req, reply) => {
     if (!requireAdmin(req, reply)) return;
 
@@ -107,91 +89,55 @@ export default async function memberRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: "Invalid input", details: parsed.error.flatten() });
     }
 
-    const { data: before, error: beforeError } = await req.supabase
-      .from("memberships")
-      .select("role, user_id")
-      .eq("id", membershipId)
-      .eq("organization_id", req.membership.organizationId)
-      .maybeSingle();
-
-    if (beforeError) {
-      req.log.error(beforeError);
-      return reply.code(500).send({ error: "Failed to load membership" });
-    }
-    if (!before) {
-      return reply.code(404).send({ error: "Membership not found" });
-    }
-    // An Admin must not be able to change their own role — self-promotion
-    // isn't a real risk (they're already Admin), but self-demotion could
-    // leave an org with zero Admins, and either way this is exactly the
-    // "enforce on the backend, not just the frontend" case the spec warns
-    // about. The frontend disables this for the current user, but that's
-    // UX only — this check is what actually stops it.
-    if (before.user_id === req.user.userId) {
-      return reply.code(403).send({ error: "You cannot change your own role" });
-    }
-
-    const { data: updated, error: updateError } = await req.supabase
-      .from("memberships")
-      .update({ role: parsed.data.role })
-      .eq("id", membershipId)
-      .select("id, role, created_at, user:profiles(id, name, email)")
-      .single();
-
-    if (updateError) {
-      req.log.error(updateError);
-      return reply.code(500).send({ error: "Failed to update role" });
-    }
-
-    await req.supabase.from("activity_log").insert({
-      organization_id: req.membership.organizationId,
-      actor_id: req.user.userId,
-      action: "MEMBER_ROLE_CHANGED",
-      metadata: { membershipId, from: before.role, to: parsed.data.role },
+    const { data, error } = await req.supabase.rpc("update_member_role", {
+      p_organization_id: req.membership.organizationId,
+      p_membership_id: membershipId,
+      p_role: parsed.data.role,
     });
 
-    return reply.send(updated);
+    if (error) {
+      switch (error.code) {
+        case "P0002":
+          return reply.code(404).send({ error: "Membership not found" });
+        case "42501":
+          // Covers both "not an Admin" and "you cannot change your own role" —
+          // the function's message distinguishes them for the client.
+          return reply.code(403).send({ error: error.message });
+        case "22023":
+          return reply.code(400).send({ error: error.message });
+        default:
+          req.log.error(error);
+          return reply.code(500).send({ error: "Failed to update role" });
+      }
+    }
+
+    return reply.send(data);
   });
 
   // DELETE /orgs/:orgId/members/:membershipId
+  // remove_org_member() does the lookup, the self-removal check, the delete
+  // and the MEMBER_REMOVED entry in one transaction.
   app.delete("/orgs/:orgId/members/:membershipId", { preHandler }, async (req, reply) => {
     if (!requireAdmin(req, reply)) return;
 
     const { membershipId } = req.params as { membershipId: string };
 
-    const { data: existing, error: fetchError } = await req.supabase
-      .from("memberships")
-      .select("id, user_id")
-      .eq("id", membershipId)
-      .eq("organization_id", req.membership.organizationId)
-      .maybeSingle();
-
-    if (fetchError) {
-      req.log.error(fetchError);
-      return reply.code(500).send({ error: "Failed to load membership" });
-    }
-    if (!existing) {
-      return reply.code(404).send({ error: "Membership not found" });
-    }
-    // Same reasoning as the PATCH handler above: an Admin removing their
-    // own membership could leave the org with zero Admins, and it's the
-    // same "backend must enforce this, not just hide the button" case.
-    if (existing.user_id === req.user.userId) {
-      return reply.code(403).send({ error: "You cannot remove yourself from the organization" });
-    }
-
-    const { error: deleteError } = await req.supabase.from("memberships").delete().eq("id", membershipId);
-    if (deleteError) {
-      req.log.error(deleteError);
-      return reply.code(500).send({ error: "Failed to remove member" });
-    }
-
-    await req.supabase.from("activity_log").insert({
-      organization_id: req.membership.organizationId,
-      actor_id: req.user.userId,
-      action: "MEMBER_REMOVED",
-      metadata: { removedUserId: existing.user_id },
+    const { error } = await req.supabase.rpc("remove_org_member", {
+      p_organization_id: req.membership.organizationId,
+      p_membership_id: membershipId,
     });
+
+    if (error) {
+      switch (error.code) {
+        case "P0002":
+          return reply.code(404).send({ error: "Membership not found" });
+        case "42501":
+          return reply.code(403).send({ error: error.message });
+        default:
+          req.log.error(error);
+          return reply.code(500).send({ error: "Failed to remove member" });
+      }
+    }
 
     return reply.code(204).send();
   });

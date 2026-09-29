@@ -101,3 +101,28 @@ export async function countOrgRows(orgId: string) {
   for (const r of [invoices, lineItems, activity]) if (r.error) throw r.error;
   return { invoices: invoices.count ?? 0, lineItems: lineItems.count ?? 0, activity: activity.count ?? 0 };
 }
+
+// TEST-ONLY, service-role only (see 0009_lockdown_and_audit.sql): runs
+// create_invoice() impersonating p_actor with the activity_log insert
+// broken for that one call, so tests can prove "audit insert fails -> the
+// whole operation rolls back" against the real database. The failure is
+// scoped to this one call's own transaction (see the migration's comments
+// for why that's safe to run alongside every other concurrently-running
+// test in this suite).
+export async function createInvoiceWithBrokenAudit(
+  actorId: string,
+  organizationId: string,
+  vendor: string,
+  invoiceNumber: string,
+  invoiceDate: string,
+  lineItems: unknown[]
+) {
+  return admin.rpc("test_create_invoice_with_broken_audit", {
+    p_actor: actorId,
+    p_organization_id: organizationId,
+    p_vendor: vendor,
+    p_invoice_number: invoiceNumber,
+    p_invoice_date: invoiceDate,
+    p_line_items: lineItems,
+  });
+}
