@@ -12,6 +12,17 @@ export default async function invoiceRoutes(app: FastifyInstance) {
   const preHandler = [app.authenticate, app.requireMembership];
 
   // POST /orgs/:orgId/invoices
+  //
+  // Idempotency-Key (optional request header): a client-generated value
+  // identifying one logical "create this invoice" attempt, unchanged across
+  // any retry of that same attempt (e.g. after a dropped connection or
+  // client-side timeout — see apps/web/src/lib/api.ts's own 8s timeout).
+  // Sending the same key with the same body returns the ORIGINAL response
+  // instead of creating a second invoice; sending it with a different body
+  // is rejected, since that's a key being reused for a different request
+  // rather than a retry. See the comment at the top of
+  // migrations/0012_idempotency.sql for how this differs from the
+  // (organization_id, vendor, invoice_number) unique constraint below.
   app.post("/orgs/:orgId/invoices", { preHandler }, async (req, reply) => {
     if (!can(req.membership.role, "invoice:create")) {
       return reply.code(403).send({ error: "You do not have permission to create invoices" });
@@ -22,6 +33,9 @@ export default async function invoiceRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: "Invalid input", details: parsed.error.flatten() });
     }
     const { vendor, invoiceNumber, invoiceDate, lineItems } = parsed.data;
+
+    const idempotencyKeyHeader = req.headers["idempotency-key"];
+    const idempotencyKey = typeof idempotencyKeyHeader === "string" && idempotencyKeyHeader.trim() !== "" ? idempotencyKeyHeader : null;
 
     // One database call does everything: it re-checks the caller's role in this
     // org, computes the totals itself from the line items (so no client- or
@@ -34,6 +48,7 @@ export default async function invoiceRoutes(app: FastifyInstance) {
       p_invoice_number: invoiceNumber,
       p_invoice_date: invoiceDate,
       p_line_items: lineItems,
+      p_idempotency_key: idempotencyKey,
     });
 
     if (error) {
@@ -45,6 +60,9 @@ export default async function invoiceRoutes(app: FastifyInstance) {
         case "42501":
           return reply.code(403).send({ error: "You do not have permission to create invoices" });
         case "22023":
+          // Also covers "this idempotency key was already used for a
+          // different request" — a genuine client bug (key reuse), distinct
+          // from a normal validation failure only by message text.
           return reply.code(400).send({ error: error.message });
         case "22003":
           return reply.code(400).send({ error: "A number on this invoice is too large" });
@@ -53,6 +71,7 @@ export default async function invoiceRoutes(app: FastifyInstance) {
           return reply.code(500).send({ error: "Failed to create invoice" });
       }
     }
+
 
     return reply.code(201).send(data);
   });

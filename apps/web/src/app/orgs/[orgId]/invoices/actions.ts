@@ -22,13 +22,18 @@ async function getAccessToken(): Promise<string> {
 
 export async function createInvoiceAction(
   orgId: string,
-  payload: { vendor: string; invoiceNumber: string; invoiceDate: string; lineItems: LineItemInput[] }
+  payload: { vendor: string; invoiceNumber: string; invoiceDate: string; lineItems: LineItemInput[] },
+  idempotencyKey?: string
 ): Promise<{ invoiceId?: string; error?: string }> {
   try {
     const token = await getAccessToken();
     const invoice = await apiFetch(`/orgs/${orgId}/invoices`, token, {
       method: "POST",
       body: JSON.stringify(payload),
+      // Optional: lets the caller safely retry (e.g. after the client-side
+      // timeout in apiFetch) without risking a second invoice — see the
+      // comment above the route in apps/api/src/routes/invoices.ts.
+      headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
     });
     revalidatePath(`/orgs/${orgId}/invoices`);
     return { invoiceId: invoice.id };

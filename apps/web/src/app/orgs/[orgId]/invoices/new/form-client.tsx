@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { LineItemsEditor, LineItemDraft, emptyLineItem, getLineItemsError } from "@/components/line-items-editor";
 import { LoadingOverlay } from "@/components/loading-overlay";
@@ -14,6 +14,13 @@ export function NewInvoiceForm({ orgId }: { orgId: string }) {
   const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [lineItems, setLineItems] = useState<LineItemDraft[]>([emptyLineItem()]);
   const [error, setError] = useState<string | null>(null);
+  // One idempotency key per logical "create this invoice" attempt, generated
+  // once and reused across any retry of the SAME attempt (a manual retry
+  // click after an error, or a future automatic retry) — never regenerated
+  // just because handleSubmit runs again. A fresh key naturally only happens
+  // on a fresh mount of this form, i.e. a genuinely new invoice draft. See
+  // apps/api/src/routes/invoices.ts and migrations/0012_idempotency.sql.
+  const idempotencyKey = useRef(crypto.randomUUID());
   // Flipped on once a submit is attempted with invalid line items, so the
   // red inline states in LineItemsEditor only appear after that point
   // rather than greeting a first-time visitor with a wall of red.
@@ -44,7 +51,7 @@ export function NewInvoiceForm({ orgId }: { orgId: string }) {
     };
 
     startTransition(async () => {
-      const result = await createInvoiceAction(orgId, payload);
+      const result = await createInvoiceAction(orgId, payload, idempotencyKey.current);
       if (result.error) {
         setError(result.error);
         return;
