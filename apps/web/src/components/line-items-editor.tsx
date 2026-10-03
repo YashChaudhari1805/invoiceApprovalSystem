@@ -129,9 +129,7 @@ export function LineItemsEditor({
             {items.map((item, i) => {
               const errors = showErrors ? lineItemErrors(item) : {};
               const fieldClass = (invalid?: string) =>
-                `w-full rounded border-0 bg-transparent px-1 py-1 text-sm outline-none focus:bg-ink-50 ${
-                  invalid ? "bg-rose-100/60 text-rose-600 focus:bg-rose-100/60" : ""
-                }`;
+                `input-field w-full px-2 py-1.5 ${invalid ? "border-rose-600 text-rose-600" : ""}`;
               return (
                 <tr key={i}>
                   <td className="px-3 py-1.5 align-top">
@@ -152,6 +150,8 @@ export function LineItemsEditor({
                       step="any"
                       value={item.quantity}
                       onChange={(e) => update(i, "quantity", e.target.value)}
+                      placeholder="1"
+                      aria-label="Quantity"
                       aria-invalid={!!errors.quantity}
                       className={`text-right ${fieldClass(errors.quantity)}`}
                     />
@@ -164,6 +164,8 @@ export function LineItemsEditor({
                       step="any"
                       value={item.rate}
                       onChange={(e) => update(i, "rate", e.target.value)}
+                      placeholder="0.00"
+                      aria-label="Rate"
                       aria-invalid={!!errors.rate}
                       className={`text-right ${fieldClass(errors.rate)}`}
                     />
@@ -177,20 +179,25 @@ export function LineItemsEditor({
                       step="any"
                       value={item.taxRate}
                       onChange={(e) => update(i, "taxRate", e.target.value)}
+                      placeholder="0"
+                      aria-label="Tax percent"
                       aria-invalid={!!errors.taxRate}
-                      className={`w-full text-right ${fieldClass(errors.taxRate)}`}
+                      className={`text-right ${fieldClass(errors.taxRate)}`}
                     />
                     {errors.taxRate && <p className="text-right text-xs text-rose-600">{errors.taxRate}</p>}
                   </td>
-                  <td className="px-3 py-1.5 text-right align-top text-ink-700">
-                    {lineAmount(item).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  <td className="px-3 py-1.5 align-top">
+                    {/* Same border + padding as an input, so the amount lines up with the fields beside it */}
+                    <div className="border border-transparent px-0 py-1.5 text-right text-sm tabular-nums text-ink-700">
+                      {lineAmount(item).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                    </div>
                   </td>
                   <td className="px-2 py-1.5 text-right align-top">
                     {items.length > 1 && (
                       <button
                         type="button"
                         onClick={() => removeRow(i)}
-                        className="text-ink-300 transition hover:text-rose-600"
+                        className="flex h-[34px] items-center px-1 text-lg leading-none text-ink-300 transition hover:text-rose-600"
                         aria-label="Remove line item"
                       >
                         ×
@@ -248,6 +255,7 @@ export function LineItemsEditor({
                   step="any"
                   value={item.quantity}
                   onChange={(e) => update(i, "quantity", e.target.value)}
+                  placeholder="1"
                   aria-invalid={!!errors.quantity}
                   className={`mt-0.5 w-full input-field px-2 py-1 text-right text-sm ${
                     errors.quantity ? "border-rose-600 text-rose-600" : ""
@@ -263,6 +271,7 @@ export function LineItemsEditor({
                   step="any"
                   value={item.rate}
                   onChange={(e) => update(i, "rate", e.target.value)}
+                  placeholder="0.00"
                   aria-invalid={!!errors.rate}
                   className={`mt-0.5 w-full input-field px-2 py-1 text-right text-sm ${
                     errors.rate ? "border-rose-600 text-rose-600" : ""
@@ -279,6 +288,7 @@ export function LineItemsEditor({
                   step="any"
                   value={item.taxRate}
                   onChange={(e) => update(i, "taxRate", e.target.value)}
+                  placeholder="0"
                   aria-invalid={!!errors.taxRate}
                   className={`mt-0.5 w-full input-field px-2 py-1 text-right text-sm ${
                     errors.taxRate ? "border-rose-600 text-rose-600" : ""
