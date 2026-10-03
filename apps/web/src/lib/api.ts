@@ -8,7 +8,15 @@ const API_URL = process.env.API_URL ?? "http://localhost:4000";
 // "Application error: a server-side exception has occurred" with no
 // indication of what actually went wrong. This timeout fails fast instead,
 // with a message that says what to check.
-const REQUEST_TIMEOUT_MS = 8000;
+const READ_TIMEOUT_MS = 8000;
+
+// Writes get a much longer budget. Aborting a write on the client does NOT
+// cancel it on the server: the database may well commit after we gave up. A
+// short timeout on a mutation therefore does not mean "it failed" — it means
+// "we no longer know", and reporting it as a failure is actively misleading
+// (the user retries, or believes nothing changed). So writes wait longer, and
+// if they still time out we say honestly that the outcome is unknown.
+const WRITE_TIMEOUT_MS = 60000;
 
 // Thrown for any non-2xx response from the API. It's still a plain Error (so
 // existing `err instanceof Error` handling keeps working), but also carries the
@@ -26,9 +34,20 @@ export class ApiError extends Error {
   }
 }
 
+// Thrown when a WRITE gets no response in time. The server may still have
+// committed the change, so callers must not tell the user it "failed".
+export class ApiOutcomeUnknownError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ApiOutcomeUnknownError";
+  }
+}
+
 export async function apiFetch(path: string, accessToken: string, init: RequestInit = {}) {
+  const isWrite = !!init.method && init.method.toUpperCase() !== "GET";
+  const timeoutMs = isWrite ? WRITE_TIMEOUT_MS : READ_TIMEOUT_MS;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   let res: Response;
   try {
@@ -44,8 +63,13 @@ export async function apiFetch(path: string, accessToken: string, init: RequestI
     });
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") {
+      if (isWrite) {
+        throw new ApiOutcomeUnknownError(
+          `The server did not respond within ${timeoutMs / 1000}s. Your change may or may not have been saved.`
+        );
+      }
       throw new Error(
-        `API request to ${path} timed out after ${REQUEST_TIMEOUT_MS}ms. ` +
+        `API request to ${path} timed out after ${timeoutMs}ms. ` +
           `If the API is hosted on a free tier that sleeps when idle, this is likely a cold start — ` +
           `check ${API_URL}/health directly, or wait ~60s and retry.`
       );

@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { buildApp } from "../../src/app";
 import { createTestOrg } from "../helpers/test-org";
 
+import { transitionAs } from "../helpers/invoices";
 const url = process.env.SUPABASE_URL!;
 const anonKey = process.env.SUPABASE_ANON_KEY!;
 
@@ -251,12 +252,7 @@ describe("GET /orgs/:orgId/invoices", () => {
           headers: { authorization: `Bearer ${rahulToken}` },
           payload: validInvoicePayload({ invoiceNumber: `SUMMARY-REVIEW-${Date.now()}` }),
         });
-        await app.inject({
-          method: "POST",
-          url: `/orgs/${summaryOrg.orgId}/invoices/${reviewInvoice.json().id}/transition`,
-          headers: { authorization: `Bearer ${rahulToken}` },
-          payload: { toStatus: "REVIEW" },
-        });
+        await transitionAs(app, summaryOrg.orgId, reviewInvoice.json().id, rahulToken, "REVIEW");
 
         const res = await app.inject({
           method: "GET",

@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { buildApp } from "../../src/app";
 import { createTestOrg } from "../helpers/test-org";
 
+import { transitionAs } from "../helpers/invoices";
 const url = process.env.SUPABASE_URL!;
 const anonKey = process.env.SUPABASE_ANON_KEY!;
 
@@ -62,12 +63,7 @@ async function versionOf(invoiceId: string) {
 }
 
 async function transition(invoiceId: string, toStatus: string, token: string) {
-  return app.inject({
-    method: "POST",
-    url: `/orgs/${testOrgId}/invoices/${invoiceId}/transition`,
-    headers: { authorization: `Bearer ${token}` },
-    payload: { toStatus },
-  });
+  return transitionAs(app, testOrgId, invoiceId, token, toStatus);
 }
 
 describe("PATCH /orgs/:orgId/invoices/:invoiceId", () => {

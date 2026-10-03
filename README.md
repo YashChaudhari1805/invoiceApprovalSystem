@@ -25,10 +25,11 @@ Row Level Security policies in Postgres are a second, independent enforcement la
 All of the database's business-logic functions (`create_invoice`, `update_invoice`, `transition_invoice`, `add_org_member`, `update_member_role`, `remove_org_member`) are `SECURITY DEFINER`: they run with the privileges of the function owner, not the calling user, which is what lets a normal `authenticated` user -- who has no direct table privilege to do so (see "Direct writes are locked down" in `SCHEMA.md`) -- create an invoice or add a member. That extra power is exactly why each one is written narrowly and reviewed against a short checklist:
 
 1. **Every one of them re-derives the caller's identity and permissions from scratch**, using `auth.uid()` and `current_role_in_org()` -- never a client-supplied user id or role. A caller cannot claim to be someone else or claim a role they don't hold; the function looks it up itself, on every call.
-2. **Every one of them pins an explicit `search_path`** (`set search_path = public`, added for the two pre-existing functions that lacked it in `0011_security_definer_hardening.sql`). Without this, a `SECURITY DEFINER` function resolves unqualified names using the *caller's* session state, and Postgres always checks a session's temporary schema first regardless of `search_path` -- so any authenticated user could otherwise create a same-named temporary table (e.g. a fake `memberships`) and have a privileged function silently read from or write to it instead of the real table. Pinning `search_path` closes that.
+2. **Every one of them pins an explicit `search_path` that lists `pg_temp` last** (`set search_path = public, pg_temp`; introduced in `0011_security_definer_hardening.sql` and applied to *every* `SECURITY DEFINER` function in `0013_review_round_1_hardening.sql`). Without a pinned path, a `SECURITY DEFINER` function resolves unqualified names using the *caller's* session state; and if `pg_temp` is not named explicitly, Postgres searches the session's temporary schema **first** -- so a caller who could create a same-named temporary table (e.g. a fake `memberships`) could have a privileged function read from or write to it instead of the real table. Naming `pg_temp` last closes that. (Plain `search_path = public` pins the schema but does *not* by itself demote the temp schema.)
 3. **Every one of them does exactly one narrowly-scoped business operation** -- create an invoice, edit an invoice, transition an invoice's status, or manage one membership -- and nothing else. None of them accept a table name, column name, or arbitrary SQL from the caller; every input is a plain scalar or a `jsonb` payload whose shape is validated inside the function before it touches a table (see `compute_invoice_totals()`'s validation, reused by both `create_invoice` and `update_invoice`).
 4. **Every write they make is inside their own transaction**, including the matching `activity_log` entry (see "Make audit history reliable" in `SCHEMA.md`) -- so exposing them doesn't create a way to make a change without a corresponding audit trail.
-5. **The two test-only functions** (`test_create_invoice_with_broken_audit`, and the always-installed-but-inert `test_activity_log_boom` trigger it drives) are `revoke`d from `public`/`anon`/`authenticated` and only `grant`ed to `service_role` -- a privilege level the running API never uses (it always calls Postgres as `authenticated`, via the caller's own JWT; see `apps/api/src/plugins/auth.ts`) and which is never issued to a browser. They exist purely so the integration suite can prove certain rollback behavior against a real database.
+5. **Client roles cannot write tables at all.** `anon` and `authenticated` hold only `SELECT` on the business tables (`0013`); every write goes through the functions above. `TRUNCATE`/`DELETE`/direct `INSERT` are not granted, and `EXECUTE` on the functions is revoked from `anon`/`PUBLIC`. Default privileges are also revoked, so a *new* table is invisible to client roles until access is granted deliberately.
+6. **The two test-only functions** (`test_create_invoice_with_broken_audit`, and the always-installed-but-inert `test_activity_log_boom` trigger it drives) are `revoke`d from `public`/`anon`/`authenticated` and only `grant`ed to `service_role` -- a privilege level the running API never uses (it always calls Postgres as `authenticated`, via the caller's own JWT; see `apps/api/src/plugins/auth.ts`) and which is never issued to a browser. They exist purely so the integration suite can prove certain rollback behavior against a real database.
 
 Everything else (`compute_invoice_totals`, `bump_invoice_version`, `set_updated_at`) is a plain helper or trigger function, not `SECURITY DEFINER`, and runs with the calling role's own (already-checked) privileges.
 
@@ -88,24 +89,82 @@ Visit `http://localhost:3000`, log in as either seeded user.
 ## Testing
 
 ```bash
-npm run test:unit -w apps/api          # pure business-rule tests, no DB, runs in ms
-npm run test:integration -w apps/api   # hits your real Supabase project as the seeded users
+npm run typecheck          # API (source + tests) and web
+npm run lint               # non-interactive; no prompts
+npm run test:unit          # pure business-rule tests: no database, no env vars needed
+npm run test:integration   # real database; see below
+npm run build              # API and web production builds
 ```
 
-The integration suite is the one worth reading if you want to see the security model actually exercised: it logs in as real users and asserts that cross-tenant access, maker-checker violations, invalid status transitions, and duplicate invoices are all rejected -- both through the API and, in several tests, by attempting the same operations directly against Supabase to confirm RLS enforces it independently of the API layer.
+### Running the integration tests
 
-Tests that create data run against disposable throwaway organizations (see `apps/api/test/helpers/test-org.ts`) created and torn down per test file, so running the suite never pollutes the real seed data.
+The integration suite signs in as real users against a **real Supabase database** and, through the service-role key, creates and deletes rows. It must therefore run against a **dedicated test project or a local Supabase -- never a project that holds real data.**
+
+1. Create a separate Supabase project for testing (or run `supabase start` locally) and apply the migrations (`supabase db push`, or `supabase db reset` locally).
+2. Copy `.env.example` to **`.env.test`** in the repo root (it takes precedence over `.env`, so your everyday keys stay separate) and fill in:
+
+| Variable | Needed by | Meaning |
+|---|---|---|
+| `SUPABASE_URL` | API, tests, seed | Project URL |
+| `SUPABASE_ANON_KEY` | API, tests | Public anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | tests, seed only | Bypasses RLS. Never put in the web app or any browser-visible place |
+| `ALLOW_REMOTE_TEST_DB` | tests | Set to `1` to confirm a *hosted* project really is a throwaway test project. Not needed for `localhost` |
+| `FRONTEND_URL` | API (runtime) | The web app's origin, for CORS. Unset in production = CORS disabled (fails closed) |
+| `PORT` | API (runtime) | Defaults to 4000 |
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | web | Same project URL / anon key, in `apps/web/.env.local` |
+| `API_URL` | web | Where the web app reaches the API |
+
+3. Seed the demo users and organisations (safe to run repeatedly): `npm run seed`
+4. `npm run test:integration`
+
+If a required variable is missing, or the URL is a hosted project without `ALLOW_REMOTE_TEST_DB=1`, the suite stops immediately with an explanatory message instead of touching anything. Tests that create data use disposable per-file organisations (`apps/api/test/helpers/test-org.ts`) so the seed data is never polluted. Seed users share the password `password123` -- another reason these must never be pointed at production.
+
+### Continuous integration
+
+`.github/workflows/ci.yml` runs typecheck, lint, unit tests and both builds on every push and pull request. The integration job runs only when `TEST_SUPABASE_URL`, `TEST_SUPABASE_ANON_KEY` and `TEST_SUPABASE_SERVICE_ROLE_KEY` are configured as repository secrets (pointing at a test project); otherwise it reports "skipped".
 
 ## Manual QA
 
-`QA-CHECKLIST.md` is a click-through script covering every "important case" from the assignment spec, run as the actual UI rather than via the API directly -- worth doing at least once before treating this as done.
+The API-level tests cannot catch UI-only defects (the original search/vendor-filter bug was one). Before a release, click through the "important cases" from the assignment as the real UI: another org's invoice URL, an Operator trying to approve, a Viewer trying to edit, a creator approving their own invoice, a duplicate create, and the filter/search/pagination controls at 320, 375, 390, 414 and 768px widths.
 
-## Known simplifications / assumptions
+## Business rules (final)
 
-- Authentication is email/password via Supabase Auth rather than a full OAuth/SSO setup -- reasonable for the assignment's timeframe.
-- A Rejected invoice is currently terminal (no path back to Draft for resubmission) -- the spec doesn't specify this case, and this was the simpler interpretation.
-- Vendor names are free text; "Tata Metals" and "tata metals" are treated as different vendors for duplicate-detection purposes (case-sensitive).
-- The free-tier API host (Render) sleeps after inactivity, causing a slow first request after idle periods. Not a code issue -- would not occur on a paid tier or with a keep-alive ping.
+| Rule | Behaviour |
+|---|---|
+| Quantity | Must be **greater than 0** (browser, API, and database `CHECK`) |
+| Rate | Must not be negative |
+| Tax rate | Between 0 and 100 inclusive |
+| Text fields | Vendor 1-255, invoice number 1-100, line description 1-500 characters; **leading/trailing spaces are trimmed and blank values are rejected** in all three layers |
+| Duplicates | Same organisation + vendor + invoice number is refused, **ignoring case and surrounding spaces** ("Tata Metals"/"tm-3842" equals "tata metals "/"TM-3842"). Enforced by a unique index, so simultaneous requests are also safe |
+| Future-dated invoices | **Allowed.** Nothing in the browser, API or database rejects an invoice date in the future |
+| Who can edit | Operators: Draft or Review only. Admins: any status (see "Open decision" below). Reviewers and Viewers: never |
+| Rejected invoices | **Terminal**: no path back to Draft. Operators cannot edit them; Admins currently can (see below) |
+| Approve / reject | Reviewers and Admins, never the invoice's creator, and only while the invoice is in Review |
+| Approving what you saw | Every status change carries the invoice **version** the user was looking at. If it was edited meanwhile, the change is refused (HTTP 409) and the page reloads, so nobody approves content they have not seen |
+
+**Open decision -- editing Approved/Rejected invoices.** The assignment says Admins "can edit invoices" without limiting status, so Admins can currently edit an invoice even after it is Approved or Rejected; the status and `approved_by` are kept and the audit entry records the old and new totals. A stricter policy (block, or reset to Draft/Review for re-approval) is a one-line change in `update_invoice` and a deliberate business decision.
+
+## Design notes
+
+- **Transactions.** `create_invoice` and `update_invoice` do the invoice, line items, totals and audit row in one database transaction; any failure rolls everything back. The audit insert is part of that transaction, so an action cannot succeed without its history.
+- **Race conditions.** `transition_invoice` locks the invoice row (`SELECT ... FOR UPDATE`), so of two simultaneous Approve/Reject exactly one wins and the loser sees "Invalid status transition".
+- **Optimistic locking.** `invoices.version` increments on every change; edits *and* status changes must supply the version they loaded, otherwise HTTP 409 `VERSION_CONFLICT`.
+- **Idempotency vs. the unique index.** The unique index stops two *different* requests creating the same business invoice. An `Idempotency-Key` makes *retrying the same request* safe: the same key and payload returns the original result instead of creating or failing again. A retry with the same key but a different payload is rejected.
+- **Stale pages.** Chosen approach: **revalidate on tab focus/visibility** (`RevalidateOnFocus`, throttled to once per 5 s), not polling or Supabase Realtime. It needs no persistent connection or extra infrastructure and covers the real scenario (come back to a tab that went stale). Its limit: a tab left visible and idle does not update by itself. The version check above is the safety net: acting on stale data is refused rather than silently applied.
+- **Slow requests.** Reads time out after 8 s; writes after 60 s. A write that times out reports "may or may not have been saved" and re-reads the real state, because aborting client-side does not cancel the server (the change may still commit).
+
+## Upgrading an existing deployment to 0013
+
+`0013` changes the signature of `transition_invoice` (it now requires the viewed version) and the API/web now send it, so these three must go out together. Apply `0013`, then deploy the API, then deploy the web app in quick succession; between those steps Submit/Approve/Reject will fail with an error until all three are live. `0013` refuses to run (with a message listing the rows) if existing data would violate the new rules, such as invoices that collide once case and spaces are ignored.
+
+## Known limitations
+
+- Authentication is email/password via Supabase Auth, not OAuth/SSO.
+- **Dependencies.** `npm audit --omit=dev` still reports 4 advisories (1 critical in `next`, 3 high in `fastify`/`find-my-way`/`postcss`) after applying every non-breaking fix, including Next 14.2.35. All remaining fixes are **major** upgrades (Next 16, Fastify 5) that were deliberately not forced. The Next advisories concern self-hosted deployments; this app is hosted on Vercel, but that mitigation has not been independently verified. Planned: Fastify 5 and Next 16 as their own, separately tested change. A plain `npm audit` reports more (currently 12) because it also counts **dev-only tooling** -- Vitest/Vite/esbuild and the ESLint config -- whose advisories concern a running dev server or a CLI flag this project never uses and which never ship to users; `npm audit --omit=dev` shows the 4 production advisories above. `npm audit fix --force` was deliberately not used: it would bump Next, Vitest and the ESLint config across major versions at once.
+- `test_create_invoice_with_broken_audit` and the inert `test_activity_log_boom` trigger live in the production migrations (granted only to `service_role`). They should move to a test-only migration; left in place because changing already-applied migrations is riskier than documenting them.
+- **Audit rollback test coverage.** The automated suite proves that a failing audit insert rolls back invoice *creation*. The same failure hook was used by hand to confirm that edits, status transitions, and adding/changing/removing members also roll back completely, but those paths have no automated test yet: the hook can only be switched on from SQL, so each would need its own service-role wrapper function.
+- Invoice-number search uses `ILIKE '%term%'`, which cannot use a btree index. Fine at this scale; add a `pg_trgm` index if the table grows large.
+- The free-tier API host (Render) sleeps when idle, so the first request can take 30-60 s.
 
 ## Project structure
 

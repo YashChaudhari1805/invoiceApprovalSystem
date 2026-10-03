@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { buildApp } from "../../src/app";
 import { createTestOrg, TEST_REVIEWER_EMAIL } from "../helpers/test-org";
 
+import { transitionAs, getInvoiceVersion } from "../helpers/invoices";
 const url = process.env.SUPABASE_URL!;
 const anonKey = process.env.SUPABASE_ANON_KEY!;
 
@@ -134,72 +135,37 @@ describe("GET /orgs/:orgId/activity", () => {
 describe("POST /orgs/:orgId/invoices/:invoiceId/transition", () => {
   it("moves an invoice from Draft to Review", async () => {
     const invoiceId = await createInvoiceAsRahul();
-    const res = await app.inject({
-      method: "POST",
-      url: `/orgs/${testOrgId}/invoices/${invoiceId}/transition`,
-      headers: { authorization: `Bearer ${rahulToken}` },
-      payload: { toStatus: "REVIEW" },
-    });
+    const res = await transitionAs(app, testOrgId, invoiceId, rahulToken, "REVIEW");
     expect(res.statusCode).toBe(200);
     expect(res.json().status).toBe("REVIEW");
   });
 
   it("rejects an invalid transition (Draft -> Approved) with 400", async () => {
     const invoiceId = await createInvoiceAsRahul();
-    const res = await app.inject({
-      method: "POST",
-      url: `/orgs/${testOrgId}/invoices/${invoiceId}/transition`,
-      headers: { authorization: `Bearer ${rahulToken}` },
-      payload: { toStatus: "APPROVED" },
-    });
+    const res = await transitionAs(app, testOrgId, invoiceId, rahulToken, "APPROVED");
     expect(res.statusCode).toBe(400);
   });
 
   it("blocks Rahul from approving his own invoice via the HTTP endpoint, even as Admin", async () => {
     const invoiceId = await createInvoiceAsRahul();
-    await app.inject({
-      method: "POST",
-      url: `/orgs/${testOrgId}/invoices/${invoiceId}/transition`,
-      headers: { authorization: `Bearer ${rahulToken}` },
-      payload: { toStatus: "REVIEW" },
-    });
+    await transitionAs(app, testOrgId, invoiceId, rahulToken, "REVIEW");
 
-    const res = await app.inject({
-      method: "POST",
-      url: `/orgs/${testOrgId}/invoices/${invoiceId}/transition`,
-      headers: { authorization: `Bearer ${rahulToken}` },
-      payload: { toStatus: "APPROVED" },
-    });
+    const res = await transitionAs(app, testOrgId, invoiceId, rahulToken, "APPROVED");
     expect(res.statusCode).toBe(403);
   });
 
   it("allows Yash (a different Reviewer) to approve Rahul's invoice", async () => {
     const invoiceId = await createInvoiceAsRahul();
-    await app.inject({
-      method: "POST",
-      url: `/orgs/${testOrgId}/invoices/${invoiceId}/transition`,
-      headers: { authorization: `Bearer ${rahulToken}` },
-      payload: { toStatus: "REVIEW" },
-    });
+    await transitionAs(app, testOrgId, invoiceId, rahulToken, "REVIEW");
 
-    const res = await app.inject({
-      method: "POST",
-      url: `/orgs/${testOrgId}/invoices/${invoiceId}/transition`,
-      headers: { authorization: `Bearer ${yashToken}` },
-      payload: { toStatus: "APPROVED" },
-    });
+    const res = await transitionAs(app, testOrgId, invoiceId, yashToken, "APPROVED");
     expect(res.statusCode).toBe(200);
     expect(res.json().status).toBe("APPROVED");
   });
 
   it("returns 400 for an unrecognized target status", async () => {
     const invoiceId = await createInvoiceAsRahul();
-    const res = await app.inject({
-      method: "POST",
-      url: `/orgs/${testOrgId}/invoices/${invoiceId}/transition`,
-      headers: { authorization: `Bearer ${rahulToken}` },
-      payload: { toStatus: "NOT_A_REAL_STATUS" },
-    });
+    const res = await transitionAs(app, testOrgId, invoiceId, rahulToken, "NOT_A_REAL_STATUS");
     expect(res.statusCode).toBe(400);
   });
 
@@ -215,29 +181,19 @@ describe("POST /orgs/:orgId/invoices/:invoiceId/transition", () => {
     // both Reviewers who did not create it, so both are eligible to decide
     // it — and Reviewers can't create invoices, so neither can be the maker.
     const invoiceId = await createInvoiceAs(rahulToken);
-    const submitRes = await app.inject({
-      method: "POST",
-      url: `/orgs/${testOrgId}/invoices/${invoiceId}/transition`,
-      headers: { authorization: `Bearer ${rahulToken}` },
-      payload: { toStatus: "REVIEW" },
-    });
+    const submitRes = await transitionAs(app, testOrgId, invoiceId, rahulToken, "REVIEW");
     expect(submitRes.statusCode).toBe(200);
+
+    // Both reviewers have the invoice open at the SAME version, exactly like two
+    // browser tabs. (Fetched once, up front, so neither request can pick up the
+    // other's result by re-reading.)
+    const loadedVersion = await getInvoiceVersion(app, testOrgId, invoiceId, rahulToken);
 
     // Fired together with Promise.all, not awaited one after another, so
     // both requests are genuinely in flight against the database at once.
     const [approveRes, rejectRes] = await Promise.all([
-      app.inject({
-        method: "POST",
-        url: `/orgs/${testOrgId}/invoices/${invoiceId}/transition`,
-        headers: { authorization: `Bearer ${yashToken}` },
-        payload: { toStatus: "APPROVED" },
-      }),
-      app.inject({
-        method: "POST",
-        url: `/orgs/${testOrgId}/invoices/${invoiceId}/transition`,
-        headers: { authorization: `Bearer ${testReviewerToken}` },
-        payload: { toStatus: "REJECTED" },
-      }),
+      transitionAs(app, testOrgId, invoiceId, yashToken, "APPROVED", loadedVersion),
+      transitionAs(app, testOrgId, invoiceId, testReviewerToken, "REJECTED", loadedVersion),
     ]);
 
     // Exactly one request must succeed and the other must be rejected —

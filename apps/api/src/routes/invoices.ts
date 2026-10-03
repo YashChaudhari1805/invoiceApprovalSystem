@@ -1,6 +1,7 @@
 import { FastifyInstance } from "fastify";
 import { can } from "../lib/invoice-rules";
 import { escapeLikePattern } from "../lib/search";
+import { isUuid } from "../lib/uuid";
 import {
   createInvoiceSchema,
   listQuerySchema,
@@ -54,8 +55,10 @@ export default async function invoiceRoutes(app: FastifyInstance) {
     if (error) {
       switch (error.code) {
         case "23505":
-          // unique (organization_id, vendor, invoice_number) — also what stops
-          // two simultaneous identical requests from both succeeding.
+          // unique index on (organization_id, lower(btrim(vendor)),
+          // lower(btrim(invoice_number))) — case/whitespace-insensitive, and
+          // also what stops two simultaneous identical requests from both
+          // succeeding.
           return reply.code(409).send({ error: "An invoice with this vendor and invoice number already exists" });
         case "42501":
           return reply.code(403).send({ error: "You do not have permission to create invoices" });
@@ -155,6 +158,11 @@ export default async function invoiceRoutes(app: FastifyInstance) {
   // from scratch, so a stale or tampered action list can't grant real access.
   app.get("/orgs/:orgId/invoices/:invoiceId", { preHandler }, async (req, reply) => {
     const { invoiceId } = req.params as { invoiceId: string };
+    if (!isUuid(invoiceId)) {
+      // Not a valid id, so it cannot exist. Without this Postgres fails the
+      // uuid cast and the client gets a 500 instead of a 404.
+      return reply.code(404).send({ error: "Invoice not found" });
+    }
 
     const { data: invoice, error: invoiceError } = await req.supabase
       .from("invoices")
@@ -220,6 +228,11 @@ export default async function invoiceRoutes(app: FastifyInstance) {
   // rather than in a separate read here that could go stale before the write.
   app.patch("/orgs/:orgId/invoices/:invoiceId", { preHandler }, async (req, reply) => {
     const { invoiceId } = req.params as { invoiceId: string };
+    if (!isUuid(invoiceId)) {
+      // Not a valid id, so it cannot exist. Without this Postgres fails the
+      // uuid cast and the client gets a 500 instead of a 404.
+      return reply.code(404).send({ error: "Invoice not found" });
+    }
 
     const parsed = updateInvoiceSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -276,35 +289,49 @@ export default async function invoiceRoutes(app: FastifyInstance) {
   // into sensible HTTP status codes.
   app.post("/orgs/:orgId/invoices/:invoiceId/transition", { preHandler }, async (req, reply) => {
     const { invoiceId } = req.params as { invoiceId: string };
+    if (!isUuid(invoiceId)) {
+      // Not a valid id, so it cannot exist. Without this Postgres fails the
+      // uuid cast and the client gets a 500 instead of a 404.
+      return reply.code(404).send({ error: "Invoice not found" });
+    }
     const parsed = transitionSchema.safeParse(req.body);
     if (!parsed.success) {
       return reply.code(400).send({ error: "Invalid input", details: parsed.error.flatten() });
     }
 
+    // `expectedVersion` is the invoice version the user was looking at when
+    // they clicked. The function refuses if the invoice has been edited since,
+    // so a reviewer can never approve content they have not seen.
     const { data, error } = await req.supabase.rpc("transition_invoice", {
       p_invoice_id: invoiceId,
       p_to_status: parsed.data.toStatus,
+      p_expected_version: parsed.data.expectedVersion,
     });
 
     if (error) {
       const message = error.message ?? "";
-      if (error.code === "42501") {
-        return reply.code(403).send({ error: "Forbidden" });
+      switch (error.code) {
+        case "PT409":
+          // Edited (or transitioned) by someone else since the client loaded it.
+          return reply.code(409).send({ error: message, code: "VERSION_CONFLICT" });
+        case "42501":
+          return reply.code(403).send({ error: "Forbidden" });
+        case "P0002":
+          return reply.code(404).send({ error: "Invoice not found" });
+        case "22023":
+          return reply.code(400).send({ error: message });
+        default:
+          // The two remaining business-rule errors use Postgres' default
+          // error code (P0001), so they can only be told apart by message.
+          if (/cannot approve or reject/i.test(message)) {
+            return reply.code(403).send({ error: message });
+          }
+          if (/invalid status transition/i.test(message)) {
+            return reply.code(400).send({ error: message });
+          }
+          req.log.error(error);
+          return reply.code(500).send({ error: "Failed to update invoice status" });
       }
-      if (/not found/i.test(message)) {
-        return reply.code(404).send({ error: "Invoice not found" });
-      }
-      if (/cannot approve or reject/i.test(message)) {
-        return reply.code(403).send({ error: message });
-      }
-      if (/invalid status transition/i.test(message)) {
-        return reply.code(400).send({ error: message });
-      }
-      if (/status changed by another request/i.test(message)) {
-        return reply.code(409).send({ error: message });
-      }
-      req.log.error(error);
-      return reply.code(500).send({ error: "Failed to update invoice status" });
     }
 
     return reply.send(data);

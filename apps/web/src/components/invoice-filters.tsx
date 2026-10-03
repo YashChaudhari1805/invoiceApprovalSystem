@@ -13,9 +13,10 @@ const STATUSES = [
 ];
 
 // Invoice-number search only starts firing automatically once the user has
-// typed at least this many characters (per spec) — below that it would
-// re-fetch on every keystroke for a query too short to narrow anything down.
-// Pressing Enter always searches immediately regardless of length.
+// typed at least this many characters — below that it would re-fetch on every
+// keystroke for a query too short to narrow anything down. This is a UX
+// choice of this app, not a requirement of the assignment. Pressing Enter
+// always searches immediately regardless of length.
 const SEARCH_MIN_LENGTH = 4;
 const DEBOUNCE_MS = 350;
 
@@ -50,15 +51,20 @@ export function InvoiceFilters() {
 
   // Live filtering: re-query DEBOUNCE_MS after the user stops typing in
   // either box, so search and vendor changes made close together land in a
-  // single navigation instead of racing each other. Search is additionally
-  // held back until it's empty (cleared) or has reached the minimum length.
+  // single navigation instead of racing each other. A half-typed search is
+  // held back until it's empty (cleared) or has reached the minimum length —
+  // but ONLY the search part is held back: a vendor change made meanwhile
+  // still applies, using the search that is already in the URL.
   useEffect(() => {
     const searchChanged = search !== urlSearch;
     const vendorChanged = vendor !== urlVendor;
     if (!searchChanged && !vendorChanged) return;
-    if (search.length > 0 && search.length < SEARCH_MIN_LENGTH) return;
 
-    const timeout = setTimeout(() => pushParams({ search, vendor }), DEBOUNCE_MS);
+    const searchReady = search.length === 0 || search.length >= SEARCH_MIN_LENGTH;
+    const nextSearch = searchReady ? search : urlSearch;
+    if (nextSearch === urlSearch && vendor === urlVendor) return; // nothing to apply yet
+
+    const timeout = setTimeout(() => pushParams({ search: nextSearch, vendor }), DEBOUNCE_MS);
     return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, vendor]);

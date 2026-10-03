@@ -1,4 +1,13 @@
 import { FastifyInstance } from "fastify";
+import type { Role } from "../lib/invoice-rules";
+
+// Shape of the `memberships` + joined `organizations` select below. The
+// Supabase client can't infer a join's cardinality without generated types, so
+// it is stated once here rather than papered over with `any`.
+interface MembershipWithOrg {
+  role: Role;
+  organization: { id: string; name: string; slug: string } | null;
+}
 
 export default async function orgRoutes(app: FastifyInstance) {
   // GET /orgs — every org the caller has a membership in, plus their role
@@ -18,12 +27,14 @@ export default async function orgRoutes(app: FastifyInstance) {
 
     // Flatten into { id, name, slug, role } — the shape the frontend org
     // switcher actually wants, rather than the nested join shape.
-    const orgs = memberships.map((m: any) => ({
-      id: m.organization.id,
-      name: m.organization.name,
-      slug: m.organization.slug,
-      role: m.role,
-    }));
+    const orgs = (memberships as unknown as MembershipWithOrg[])
+      .filter((m): m is MembershipWithOrg & { organization: NonNullable<MembershipWithOrg["organization"]> } => m.organization !== null)
+      .map((m) => ({
+        id: m.organization.id,
+        name: m.organization.name,
+        slug: m.organization.slug,
+        role: m.role,
+      }));
 
     return reply.send({ orgs });
   });

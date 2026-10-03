@@ -39,11 +39,15 @@ export function InvoiceActions({
   orgId,
   invoiceId,
   invoiceNumber,
+  version,
   availableActions,
 }: {
   orgId: string;
   invoiceId: string;
   invoiceNumber: string;
+  // The invoice version this page was rendered from; sent with the action so
+  // the server can refuse if the invoice has changed since.
+  version: number;
   availableActions: string[];
 }) {
   const router = useRouter();
@@ -61,15 +65,27 @@ export function InvoiceActions({
     setPendingAction(action);
     startTransition(async () => {
       const { toStatus, toastMessage } = ACTION_META[action];
-      const result = await transitionInvoiceAction(orgId, invoiceId, toStatus);
+      const result = await transitionInvoiceAction(orgId, invoiceId, toStatus, version);
       setPendingAction(null);
+      if (result.outcomeUnknown) {
+        // No response in time. The server may still have applied the change,
+        // so do NOT claim it failed — re-read the real state instead.
+        showToast("error", `No response for invoice ${invoiceNumber} — checking its current status…`);
+        setError(null);
+        router.refresh();
+        return;
+      }
+      if (result.conflict) {
+        // Someone edited or decided this invoice after this page loaded.
+        // Reload so the user reviews what is actually there now.
+        showToast("error", `Invoice ${invoiceNumber} changed while you had it open — reloaded the latest version.`);
+        setError(null);
+        router.refresh();
+        return;
+      }
       if (result.error) {
-        // Something went wrong — the invoice's status was NOT changed. Make
-        // that unambiguous rather than leaving the user guessing whether a
-        // slow request actually went through. Shown both as a toast (in
-        // case the user has already looked away from this exact spot) and
-        // as a banner underneath the buttons (persists longer, and is
-        // reachable for anyone not currently looking at the toast corner).
+        // The server answered with an error, so the transaction was rolled
+        // back: the status genuinely was NOT changed.
         showToast("error", `Couldn't update invoice ${invoiceNumber} — ${result.error}`);
         setError(result.error);
         return;

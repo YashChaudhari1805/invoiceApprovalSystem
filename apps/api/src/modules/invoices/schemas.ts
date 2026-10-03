@@ -1,15 +1,17 @@
 import { z } from "zod";
 
 export const lineItemInputSchema = z.object({
-  description: z.string().min(1).max(500),
+  // .trim() runs before .min(1): "   " becomes "" and is rejected, exactly as
+  // the database (btrim(...) <> '') and the browser form do.
+  description: z.string().trim().min(1).max(500),
   quantity: z.number().positive(),
   rate: z.number().nonnegative(),
   taxRate: z.number().min(0).max(100),
 });
 
 export const createInvoiceSchema = z.object({
-  vendor: z.string().min(1).max(255),
-  invoiceNumber: z.string().min(1).max(100),
+  vendor: z.string().trim().min(1).max(255),
+  invoiceNumber: z.string().trim().min(1).max(100),
   invoiceDate: z.string().date(), 
   lineItems: z.array(lineItemInputSchema).min(1, "At least one line item is required"),
 });
@@ -25,6 +27,10 @@ export const updateInvoiceSchema = createInvoiceSchema.partial().extend({
 
 export const transitionSchema = z.object({
   toStatus: z.enum(["REVIEW", "APPROVED", "REJECTED"]),
+  // The version the user was looking at. Required for the same reason as on
+  // edits: without it a reviewer could approve content changed after they
+  // opened the page.
+  expectedVersion: z.number().int().positive(),
 });
 
 export const listQuerySchema = z.object({

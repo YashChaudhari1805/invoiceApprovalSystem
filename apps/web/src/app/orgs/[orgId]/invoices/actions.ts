@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { apiFetch, ApiError } from "@/lib/api";
+import { apiFetch, ApiError, ApiOutcomeUnknownError } from "@/lib/api";
 
 interface LineItemInput {
   description: string;
@@ -72,21 +72,33 @@ export async function updateInvoiceAction(
   }
 }
 
+// `expectedVersion` is the invoice version the user was looking at. The API
+// refuses if the invoice has been edited since, so nobody can approve content
+// they have not seen. Result flags let the UI say the right thing:
+//   conflict        -> someone else changed it; reload and look again
+//   outcomeUnknown  -> no response in time; the change MAY have been applied
 export async function transitionInvoiceAction(
   orgId: string,
   invoiceId: string,
-  toStatus: "REVIEW" | "APPROVED" | "REJECTED"
-): Promise<{ error?: string }> {
+  toStatus: "REVIEW" | "APPROVED" | "REJECTED",
+  expectedVersion: number
+): Promise<{ error?: string; conflict?: boolean; outcomeUnknown?: boolean }> {
   try {
     const token = await getAccessToken();
     await apiFetch(`/orgs/${orgId}/invoices/${invoiceId}/transition`, token, {
       method: "POST",
-      body: JSON.stringify({ toStatus }),
+      body: JSON.stringify({ toStatus, expectedVersion }),
     });
     revalidatePath(`/orgs/${orgId}/invoices/${invoiceId}`);
     revalidatePath(`/orgs/${orgId}/invoices`);
     return {};
   } catch (err) {
+    if (err instanceof ApiOutcomeUnknownError) {
+      return { error: err.message, outcomeUnknown: true };
+    }
+    if (err instanceof ApiError && err.status === 409 && err.code === "VERSION_CONFLICT") {
+      return { error: err.message, conflict: true };
+    }
     return { error: err instanceof Error ? err.message : "Failed to update status" };
   }
 }

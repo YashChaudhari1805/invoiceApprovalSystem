@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/api";
 import { StatusBadge } from "@/components/status-badge";
 import { RevalidateOnFocus } from "@/components/revalidate-on-focus";
 import { InvoiceActions } from "./invoice-actions";
+import { formatInvoiceDate } from "@/lib/dates";
 
 interface Org {
   id: string;
@@ -36,6 +37,7 @@ interface InvoiceDetail {
   invoice_number: string;
   invoice_date: string;
   status: string;
+  version: number;
   taxable_amount: string | number;
   tax_amount: string | number;
   total_amount: string | number;
@@ -145,7 +147,7 @@ export default async function InvoiceDetailPage({
         <div>
           <p className="text-ink-500">Invoice date</p>
           <p className="mt-0.5 font-medium text-ink-900">
-            {new Date(invoice.invoice_date).toLocaleDateString()}
+            {formatInvoiceDate(invoice.invoice_date)}
           </p>
         </div>
         <div>
@@ -218,6 +220,7 @@ export default async function InvoiceDetailPage({
         orgId={params.orgId}
         invoiceId={invoice.id}
         invoiceNumber={invoice.invoice_number}
+        version={invoice.version}
         availableActions={invoice.availableActions}
       />
     </div>
