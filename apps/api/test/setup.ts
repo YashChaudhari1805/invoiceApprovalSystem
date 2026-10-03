@@ -1,14 +1,17 @@
 import * as dotenv from "dotenv";
+import fs from "node:fs";
 import path from "node:path";
 import { expect } from "vitest";
 
 // Resolved relative to THIS file, not the current working directory — the old
 // relative "../../.env" only worked when vitest happened to be launched from
-// apps/api. `.env.test` (if present) wins over `.env`, so a developer can keep
-// a dedicated test project's keys separate from their everyday ones.
+// apps/api. A dedicated `.env.test` keeps a test project's keys separate from
+// the everyday ones.
 const repoRoot = path.resolve(__dirname, "../../..");
-dotenv.config({ path: path.join(repoRoot, ".env.test") });
-dotenv.config({ path: path.join(repoRoot, ".env") }); // dotenv never overrides values already set
+const testEnvFile = path.join(repoRoot, ".env.test");
+// If .env.test exists it is the ONLY file read. Falling back to .env for a
+// variable missing from it would silently mix in the real project's keys.
+dotenv.config({ path: fs.existsSync(testEnvFile) ? testEnvFile : path.join(repoRoot, ".env") });
 
 // ---------------------------------------------------------------------------
 // Safety rail. The integration tests create and delete real rows (through a

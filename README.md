@@ -101,7 +101,7 @@ npm run build              # API and web production builds
 The integration suite signs in as real users against a **real Supabase database** and, through the service-role key, creates and deletes rows. It must therefore run against a **dedicated test project or a local Supabase -- never a project that holds real data.**
 
 1. Create a separate Supabase project for testing (or run `supabase start` locally) and apply the migrations (`supabase db push`, or `supabase db reset` locally).
-2. Copy `.env.example` to **`.env.test`** in the repo root (it takes precedence over `.env`, so your everyday keys stay separate) and fill in:
+2. Copy `.env.example` to **`.env.test`** in the repo root and fill in the table below. When `.env.test` exists the tests read **only** that file and ignore `.env` completely, so a missing value can never fall back to your real project's keys:
 
 | Variable | Needed by | Meaning |
 |---|---|---|
@@ -114,7 +114,7 @@ The integration suite signs in as real users against a **real Supabase database*
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | web | Same project URL / anon key, in `apps/web/.env.local` |
 | `API_URL` | web | Where the web app reaches the API |
 
-3. Seed the demo users and organisations (safe to run repeatedly): `npm run seed`
+3. Seed the demo users and organisations (safe to run repeatedly) with **`npm run seed:test`**. This reads `.env.test` and prints the project it is seeding before doing anything -- check that it is your TEST project. (Plain `npm run seed` reads `.env`, i.e. your normal project.)
 4. `npm run test:integration`
 
 If a required variable is missing, or the URL is a hosted project without `ALLOW_REMOTE_TEST_DB=1`, the suite stops immediately with an explanatory message instead of touching anything. Tests that create data use disposable per-file organisations (`apps/api/test/helpers/test-org.ts`) so the seed data is never polluted. Seed users share the password `password123` -- another reason these must never be pointed at production.
