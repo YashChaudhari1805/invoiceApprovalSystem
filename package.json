@@ -1,12 +1,20 @@
 {
   "name": "invoice-app",
   "private": true,
-  "workspaces": ["apps/*"],
+  "workspaces": [
+    "apps/*"
+  ],
   "scripts": {
     "dev:api": "npm run dev -w apps/api",
     "dev:web": "npm run dev -w apps/web",
     "seed": "tsx scripts/seed.ts",
-    "cleanup:test-data": "tsx scripts/cleanup-test-data.ts"
+    "cleanup:test-data": "tsx scripts/cleanup-test-data.ts",
+    "seed:test": "tsx scripts/seed.ts --env=.env.test",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test:unit": "npm run test:unit -w apps/api",
+    "test:integration": "npm run test:integration -w apps/api",
+    "build": "npm run build --workspaces --if-present"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

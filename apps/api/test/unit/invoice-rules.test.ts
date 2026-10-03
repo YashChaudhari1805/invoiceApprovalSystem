@@ -91,8 +91,8 @@ describe("invoice edit permission", () => {
 describe("invoice total computation", () => {
   it("computes taxable, tax, and total across multiple line items", () => {
     const result = computeInvoiceTotals([
-      { quantity: 2, rate: 100, taxRate: 18 }, // taxable 200, tax 36, amount 236
-      { quantity: 1, rate: 50, taxRate: 5 },   // taxable 50, tax 2.5, amount 52.5
+      { description: "A", quantity: 2, rate: 100, taxRate: 18 }, // taxable 200, tax 36, amount 236
+      { description: "B", quantity: 1, rate: 50, taxRate: 5 },   // taxable 50, tax 2.5, amount 52.5
     ]);
     expect(result.taxableAmount).toBe(250);
     expect(result.taxAmount).toBe(38.5);
@@ -102,13 +102,13 @@ describe("invoice total computation", () => {
   });
 
   it("handles a zero-tax line item", () => {
-    const result = computeInvoiceTotals([{ quantity: 3, rate: 10, taxRate: 0 }]);
+    const result = computeInvoiceTotals([{ description: "C", quantity: 3, rate: 10, taxRate: 0 }]);
     expect(result.taxAmount).toBe(0);
     expect(result.totalAmount).toBe(30);
   });
 
   it("does not accumulate floating point drift over many line items", () => {
-    const lineItems = Array.from({ length: 10 }, () => ({ quantity: 1, rate: 0.1, taxRate: 10 }));
+    const lineItems = Array.from({ length: 10 }, () => ({ description: "D", quantity: 1, rate: 0.1, taxRate: 10 }));
     const result = computeInvoiceTotals(lineItems);
     // 10 * 0.1 = 1.00 taxable; naive floating point addition can drift to
     // 0.9999999999999999 without rounding at each step.

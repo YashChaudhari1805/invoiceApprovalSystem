@@ -18,11 +18,16 @@
 
 import { createClient } from "@supabase/supabase-js";
 import * as dotenv from "dotenv";
-dotenv.config();
+// `npm run seed` reads .env (your normal project); `npm run seed:test` passes
+// --env=.env.test so a throwaway TEST project can be seeded without touching
+// the real one. Whichever is used, the target is printed before anything runs.
+const envArg = process.argv.find((a) => a.startsWith("--env="));
+dotenv.config({ path: envArg ? envArg.slice("--env=".length) : ".env" });
 
 const supabaseUrl = process.env.SUPABASE_URL!;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
+console.log(`Seeding Supabase project: ${supabaseUrl ? new URL(supabaseUrl).host : "(SUPABASE_URL not set)"}`);
 if (!supabaseUrl || !serviceRoleKey) {
   throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY in .env");
 }

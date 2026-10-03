@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Needs no secrets and no database: runs on every push and pull request,
+  # including from forks.
+  quality:
+    name: Typecheck, lint, unit tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Typecheck (API source + tests, web)
+        run: npm run typecheck
+      - name: Lint (non-interactive)
+        run: npm run lint
+        env:
+          CI: "true"
+      - name: Unit tests
+        run: npm run test:unit
+      - name: Build API and web
+        run: npm run build
+        env:
+          # Next inlines NEXT_PUBLIC_* at build time; the build only needs
+          # placeholders, nothing is contacted.
+          NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
+          NEXT_TELEMETRY_DISABLED: "1"
+
+  # Runs only when a dedicated TEST Supabase project is configured as
+  # repository secrets (Settings -> Secrets and variables -> Actions):
+  #   TEST_SUPABASE_URL, TEST_SUPABASE_ANON_KEY, TEST_SUPABASE_SERVICE_ROLE_KEY
+  # Never point these at a project that holds real data: the tests create and
+  # delete rows with the service-role key.
+  integration:
+    name: Integration tests (needs test Supabase project)
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # One run at a time: concurrent runs would share the same test database.
+    concurrency:
+      group: integration-tests
+      cancel-in-progress: false
+    env:
+      SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+      SUPABASE_ANON_KEY: ${{ secrets.TEST_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.TEST_SUPABASE_SERVICE_ROLE_KEY }}
+      ALLOW_REMOTE_TEST_DB: "1"
+    steps:
+      - name: Skip notice
+        if: env.SUPABASE_URL == ''
+        run: echo "::notice::Integration tests skipped - no TEST_SUPABASE_* secrets configured."
+      - uses: actions/checkout@v4
+        if: env.SUPABASE_URL != ''
+      - uses: actions/setup-node@v4
+        if: env.SUPABASE_URL != ''
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+        if: env.SUPABASE_URL != ''
+      - name: Seed demo users and organisations
+        if: env.SUPABASE_URL != ''
+        run: npm run seed
+      - name: Integration tests
+        if: env.SUPABASE_URL != ''
+        run: npm run test:integration

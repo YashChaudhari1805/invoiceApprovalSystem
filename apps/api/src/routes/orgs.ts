@@ -1,4 +1,12 @@
 import { FastifyInstance } from "fastify";
+import type { Role } from "../lib/invoice-rules";
+
+// Shape of the memberships + joined organizations select below (the Supabase
+// client cannot infer a join without generated types).
+interface MembershipWithOrg {
+  role: Role;
+  organization: { id: string; name: string; slug: string };
+}
 
 export default async function orgRoutes(app: FastifyInstance) {
   // GET /orgs — every org the caller has a membership in, plus their role
@@ -18,7 +26,7 @@ export default async function orgRoutes(app: FastifyInstance) {
 
     // Flatten into { id, name, slug, role } — the shape the frontend org
     // switcher actually wants, rather than the nested join shape.
-    const orgs = memberships.map((m: any) => ({
+    const orgs = (memberships as unknown as MembershipWithOrg[]).map((m) => ({
       id: m.organization.id,
       name: m.organization.name,
       slug: m.organization.slug,

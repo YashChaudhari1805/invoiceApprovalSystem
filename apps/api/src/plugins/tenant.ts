@@ -15,7 +15,7 @@ export default fp(async (app) => {
   app.decorate(
     "requireMembership",
     async function (req: FastifyRequest, reply: FastifyReply) {
-      const orgId = (req.params as any).orgId;
+      const orgId = (req.params as { orgId?: string }).orgId;
       if (!orgId) {
         reply.code(400).send({ error: "Missing organization id" });
         return;

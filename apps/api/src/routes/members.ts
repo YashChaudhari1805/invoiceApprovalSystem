@@ -1,4 +1,4 @@
-import { FastifyInstance } from "fastify";
+import { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { can } from "../lib/invoice-rules";
 import { addMemberSchema, updateMemberRoleSchema } from "../modules/members/schemas";
 
@@ -8,7 +8,7 @@ export default async function memberRoutes(app: FastifyInstance) {
   // The entire members screen is Admin-only per the spec ("accessible to
   // Admin users"), so every route in this file gets this same guard rather
   // than allowing broader read access.
-  function requireAdmin(req: any, reply: any) {
+  function requireAdmin(req: FastifyRequest, reply: FastifyReply) {
     if (!can(req.membership.role, "member:manage")) {
       reply.code(403).send({ error: "Only Admins can manage organization members" });
       return false;
