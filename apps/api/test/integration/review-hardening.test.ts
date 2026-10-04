@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { buildApp } from "../../src/app";
-import { createTestOrg, countOrgRows } from "../helpers/test-org";
+import { createTestOrg, countOrgRows, insertInvoiceWithoutLineItems } from "../helpers/test-org";
 import { createInvoiceRpc, transitionRpc, transitionAs, getInvoiceVersion } from "../helpers/invoices";
 
 const url = process.env.SUPABASE_URL!;
@@ -274,5 +274,55 @@ describe("audit: an edit records what changed in money terms", () => {
     expect(Number(m.totalAfter)).toBe(5900);
     expect(m.status).toBe("DRAFT");
     expect(m.changedFields).toEqual(["lineItems"]);
+  });
+});
+
+describe("0014: an invoice with no line items cannot move forward", () => {
+  it("database: submitting an empty Draft is refused and it stays a Draft", async () => {
+    const empty = await insertInvoiceWithoutLineItems(testOrgId, rahul.userId, uniq("EMPTY"));
+
+    const { error } = await transitionRpc(rahul.client, empty.id, "REVIEW");
+    expect(error?.code).toBe("22023");
+    expect(error?.message).toMatch(/no line items/i);
+
+    const { data } = await rahul.client.from("invoices").select("status").eq("id", empty.id).single();
+    expect(data?.status).toBe("DRAFT");
+  });
+
+  it("database: an empty invoice already in Review cannot be approved, but CAN be rejected", async () => {
+    // created by Rahul, so Yash (a different Reviewer) is the one allowed to act on it
+    const stuck = await insertInvoiceWithoutLineItems(testOrgId, rahul.userId, uniq("STUCK"), "REVIEW");
+
+    const approve = await transitionRpc(yash.client, stuck.id, "APPROVED");
+    expect(approve.error?.code).toBe("22023");
+
+    const reject = await transitionRpc(yash.client, stuck.id, "REJECTED");
+    expect(reject.error).toBeNull();
+    expect(reject.data.status).toBe("REJECTED");
+  });
+
+  it("database: adding line items by editing makes the same invoice submittable", async () => {
+    const empty = await insertInvoiceWithoutLineItems(testOrgId, rahul.userId, uniq("REPAIR"));
+
+    const edit = await rahul.client.rpc("update_invoice", {
+      p_organization_id: testOrgId,
+      p_invoice_id: empty.id,
+      p_expected_version: empty.version,
+      p_patch: { lineItems: [{ description: "Microchips", quantity: 20, rate: 15000, taxRate: 28 }] },
+    });
+    expect(edit.error).toBeNull();
+    expect(Number(edit.data.total_amount)).toBe(384000);
+
+    const submit = await transitionRpc(rahul.client, empty.id, "REVIEW");
+    expect(submit.error).toBeNull();
+    expect(submit.data.status).toBe("REVIEW");
+  });
+
+  it("HTTP: submitting an empty invoice is a 400 with a message the UI can show", async () => {
+    const empty = await insertInvoiceWithoutLineItems(testOrgId, rahul.userId, uniq("HTTP-EMPTY"));
+
+    const res = await transitionAs(app, testOrgId, empty.id, rahul.token, "REVIEW");
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toMatch(/no line items/i);
   });
 });

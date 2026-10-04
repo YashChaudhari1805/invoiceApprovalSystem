@@ -141,6 +141,7 @@ The API-level tests cannot catch UI-only defects (the original search/vendor-fil
 | Rejected invoices | **Terminal**: no path back to Draft. Operators cannot edit them; Admins currently can (see below) |
 | Approve / reject | Reviewers and Admins, never the invoice's creator, and only while the invoice is in Review |
 | Approving what you saw | Every status change carries the invoice **version** the user was looking at. If it was edited meanwhile, the change is refused (HTTP 409) and the page reloads, so nobody approves content they have not seen |
+| Line items required | An invoice needs **at least one line item** to be submitted for review or approved. Rejecting an empty invoice is still allowed, as the clean way to dispose of one. (`create_invoice()` cannot produce an empty invoice; this guards rows created by an older API build and anything inserted outside the app.) |
 
 **Open decision -- editing Approved/Rejected invoices.** The assignment says Admins "can edit invoices" without limiting status, so Admins can currently edit an invoice even after it is Approved or Rejected; the status and `approved_by` are kept and the audit entry records the old and new totals. A stricter policy (block, or reset to Draft/Review for re-approval) is a one-line change in `update_invoice` and a deliberate business decision.
 
@@ -153,9 +154,30 @@ The API-level tests cannot catch UI-only defects (the original search/vendor-fil
 - **Stale pages.** Chosen approach: **revalidate on tab focus/visibility** (`RevalidateOnFocus`, throttled to once per 5 s), not polling or Supabase Realtime. It needs no persistent connection or extra infrastructure and covers the real scenario (come back to a tab that went stale). Its limit: a tab left visible and idle does not update by itself. The version check above is the safety net: acting on stale data is refused rather than silently applied.
 - **Slow requests.** Reads time out after 8 s; writes after 60 s. A write that times out reports "may or may not have been saved" and re-reads the real state, because aborting client-side does not cancel the server (the change may still commit).
 
-## Upgrading an existing deployment to 0013
+## Upgrading an existing deployment (migrations 0013 and 0014)
 
-`0013` changes the signature of `transition_invoice` (it now requires the viewed version) and the API/web now send it, so these three must go out together. Apply `0013`, then deploy the API, then deploy the web app in quick succession; between those steps Submit/Approve/Reject will fail with an error until all three are live. `0013` refuses to run (with a message listing the rows) if existing data would violate the new rules, such as invoices that collide once case and spaces are ignored.
+`0013` changes the signature of `transition_invoice` (it now requires the version the user was looking at) and the API/web send it, so **the database, the API and the web app must all be updated together**. Between the steps below, Submit/Approve/Reject will fail until all three are live, so pick a quiet moment and do them back to back:
+
+1. **Check your data first** (read-only, in the Supabase SQL Editor). `0013` refuses to run, with a message naming the rows, if two invoices would collide once case and spaces are ignored or if a vendor/invoice number/description is blank. Rows with no line items do not block the migrations, but cannot be submitted or approved afterwards (`0014`); fix them with *Edit invoice* or reject them:
+   ```sql
+   select i.invoice_number, i.status, i.total_amount
+   from invoices i left join line_items l on l.invoice_id = i.id
+   where l.id is null;
+   ```
+   And the two things `0013` itself checks (both should return no rows / 0):
+   ```sql
+   -- invoices that would collide once case and surrounding spaces are ignored
+   select organization_id, lower(btrim(vendor)) as vendor, lower(btrim(invoice_number)) as invoice_number, count(*)
+   from invoices group by 1, 2, 3 having count(*) > 1;
+
+   -- blank (whitespace-only) values
+   select (select count(*) from invoices  where btrim(vendor) = '' or btrim(invoice_number) = '') as blank_invoices,
+          (select count(*) from line_items where btrim(description) = '')                            as blank_descriptions;
+   ```
+2. **Apply the migrations** `0013` then `0014` (`supabase db push`, or paste each file into the SQL Editor in order).
+3. **Deploy the API.** If your host does not auto-deploy (Render's free tier can be set up that way), trigger a manual deploy of the latest commit and wait for "Live". A stale API is the classic failure here: an old build still tries direct table writes that the database now refuses (symptom: an invoice is created with a total but no line items, and editing says "Failed to update invoice").
+4. **Deploy the web app.**
+5. **Smoke test**: create an invoice (items and a "created" activity entry must appear), submit it, approve it as a different user.
 
 ## Known limitations
 

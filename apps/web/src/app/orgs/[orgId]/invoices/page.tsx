@@ -152,11 +152,12 @@ export default async function InvoiceListPage({
               <table className="w-full min-w-[560px] text-sm">
                 <thead>
                   <tr className="border-b border-ink-100 text-left text-xs font-medium uppercase tracking-wide text-ink-500">
-                    <th className="px-4 py-2.5 font-medium">Invoice #</th>
+                    <th className="px-4 py-2.5 font-medium">Invoice number</th>
                     <th className="px-4 py-2.5 font-medium">Vendor</th>
                     <th className="px-4 py-2.5 font-medium">Date</th>
                     <th className="px-4 py-2.5 font-medium">Status</th>
                     <th className="px-4 py-2.5 text-right font-medium">Total</th>
+                    <th className="w-10 px-2 py-2.5"><span className="sr-only">Open</span></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-ink-100">
@@ -165,7 +166,7 @@ export default async function InvoiceListPage({
                       <td className="px-4 py-3">
                         <Link
                           href={`/orgs/${params.orgId}/invoices/${inv.id}`}
-                          className="font-medium text-ink-900 hover:text-accent-600"
+                          className="font-semibold text-accent-600 underline-offset-4 transition hover:text-accent-500 hover:underline focus-visible:underline"
                         >
                           {inv.invoice_number}
                         </Link>
@@ -178,6 +179,18 @@ export default async function InvoiceListPage({
                         <StatusBadge status={inv.status} />
                       </td>
                       <td className="px-4 py-3 text-right font-medium text-ink-900">{money(inv.total_amount)}</td>
+                      <td className="px-2 py-3 text-right">
+                        {/* A visible "open" cue on every row. The invoice number link above is the
+                            accessible one, so this is hidden from keyboard and screen readers. */}
+                        <Link
+                          href={`/orgs/${params.orgId}/invoices/${inv.id}`}
+                          tabIndex={-1}
+                          aria-hidden="true"
+                          className="inline-block px-1 text-lg leading-none text-ink-500 transition hover:text-accent-600"
+                        >
+                          ›
+                        </Link>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

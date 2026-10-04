@@ -190,3 +190,18 @@
     @apply flex items-center justify-between rounded-lg px-3 py-2 text-sm transition hover:bg-ink-50;
   }
 }
+
+/* Number inputs: hide the browser's built-in up/down spinner. In the dark
+   theme it draws as a pale grey box on top of the typed value (clipping the
+   "1" in Qty and the "0" in Tax %) and is awkward to hit on a keyboard-first
+   form. Typing, the arrow keys and the mobile numeric keypad all still work. */
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+  font-variant-numeric: tabular-nums;
+}
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
