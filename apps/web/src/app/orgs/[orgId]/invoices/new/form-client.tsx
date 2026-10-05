@@ -5,13 +5,14 @@ import { useRouter } from "next/navigation";
 import { LineItemsEditor, LineItemDraft, emptyLineItem, getLineItemsError } from "@/components/line-items-editor";
 import { LoadingOverlay } from "@/components/loading-overlay";
 import { createInvoiceAction } from "../actions";
+import { todayLocalISO } from "@/lib/dates";
 
 export function NewInvoiceForm({ orgId }: { orgId: string }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [vendor, setVendor] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState("");
-  const [invoiceDate, setInvoiceDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [invoiceDate, setInvoiceDate] = useState(() => todayLocalISO());
   const [lineItems, setLineItems] = useState<LineItemDraft[]>([emptyLineItem()]);
   const [error, setError] = useState<string | null>(null);
   // One idempotency key per logical "create this invoice" attempt, generated
@@ -30,6 +31,12 @@ export function NewInvoiceForm({ orgId }: { orgId: string }) {
     e.preventDefault();
     setError(null);
 
+    // `required` lets "   " through; the API and database reject it, so say so up front.
+    if (!vendor.trim() || !invoiceNumber.trim()) {
+      setError("Vendor and invoice number can't be blank.");
+      return;
+    }
+
     const lineItemsError = getLineItemsError(lineItems);
     if (lineItemsError) {
       setShowLineItemErrors(true);
@@ -39,8 +46,8 @@ export function NewInvoiceForm({ orgId }: { orgId: string }) {
     setShowLineItemErrors(false);
 
     const payload = {
-      vendor,
-      invoiceNumber,
+      vendor: vendor.trim(),
+      invoiceNumber: invoiceNumber.trim(),
       invoiceDate,
       lineItems: lineItems.map((li) => ({
         description: li.description,

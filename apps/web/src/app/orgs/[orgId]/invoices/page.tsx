@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { InvoiceFilters } from "@/components/invoice-filters";
 import { Pagination } from "@/components/pagination";
 import { RevalidateOnFocus } from "@/components/revalidate-on-focus";
+import { formatInvoiceDate } from "@/lib/dates";
 
 interface Org {
   id: string;
@@ -56,7 +57,8 @@ export default async function InvoiceListPage({
   } = await supabase.auth.getSession();
   if (!session) redirect("/login");
 
-  const page = Number(searchParams.page ?? "1");
+  // ?page=abc or ?page=-3 must not reach the API as NaN/negative (a 400 there crashes the page)
+  const page = Math.max(1, Math.floor(Number(searchParams.page)) || 1);
   const pageSize = 20;
   const query = new URLSearchParams({
     page: String(page),
@@ -171,7 +173,7 @@ export default async function InvoiceListPage({
                       </td>
                       <td className="px-4 py-3 text-ink-700">{inv.vendor}</td>
                       <td className="px-4 py-3 text-ink-500">
-                        {new Date(inv.invoice_date).toLocaleDateString()}
+                        {formatInvoiceDate(inv.invoice_date)}
                       </td>
                       <td className="px-4 py-3">
                         <StatusBadge status={inv.status} />
@@ -214,7 +216,7 @@ export default async function InvoiceListPage({
                       <StatusBadge status={inv.status} />
                     </div>
                     <div className="mt-2 flex items-baseline justify-between text-sm">
-                      <span className="text-ink-500">{new Date(inv.invoice_date).toLocaleDateString()}</span>
+                      <span className="text-ink-500">{formatInvoiceDate(inv.invoice_date)}</span>
                       <span className="font-medium text-ink-900">{money(inv.total_amount)}</span>
                     </div>
                   </Link>

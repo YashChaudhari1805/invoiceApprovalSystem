@@ -15,6 +15,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { createTestOrg, countOrgRows, createInvoiceWithBrokenAudit } from "../helpers/test-org";
 
+import { transitionRpc } from "../helpers/invoices";
 const url = process.env.SUPABASE_URL!;
 const anonKey = process.env.SUPABASE_ANON_KEY!;
 
@@ -170,7 +171,7 @@ describe("7 audit history is part of the transaction, not best-effort", () => {
 describe("richer audit metadata (section 7)", () => {
   it("a status transition records both the old and new status", async () => {
     const invoice = await createInvoice();
-    await rahul.rpc("transition_invoice", { p_invoice_id: invoice.id, p_to_status: "REVIEW" });
+    await transitionRpc(rahul, invoice.id, "REVIEW");
 
     const { data: entries } = await rahul
       .from("activity_log")
@@ -178,7 +179,9 @@ describe("richer audit metadata (section 7)", () => {
       .eq("invoice_id", invoice.id)
       .eq("action", "INVOICE_SUBMITTED");
     expect(entries).toHaveLength(1);
-    expect(entries![0].metadata).toEqual({ from: "DRAFT", to: "REVIEW" });
+    // `version` (added in 0013) records which version the actor acted on.
+    expect(entries![0].metadata).toMatchObject({ from: "DRAFT", to: "REVIEW" });
+    expect(typeof entries![0].metadata.version).toBe("number");
   });
 
   it("an edit records which fields were changed", async () => {

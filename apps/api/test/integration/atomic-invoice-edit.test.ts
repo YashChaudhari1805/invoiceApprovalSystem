@@ -14,6 +14,7 @@ import { createClient } from "@supabase/supabase-js";
 import { buildApp } from "../../src/app";
 import { createTestOrg, countOrgRows } from "../helpers/test-org";
 
+import { transitionAs } from "../helpers/invoices";
 const url = process.env.SUPABASE_URL!;
 const anonKey = process.env.SUPABASE_ANON_KEY!;
 
@@ -249,12 +250,7 @@ describe("optimistic locking", () => {
     const loaded = await getDetail(invoiceId); // editor opens the Draft
 
     // Meanwhile the invoice is submitted for review (any update bumps the version).
-    const submit = await app.inject({
-      method: "POST",
-      url: `/orgs/${testOrgId}/invoices/${invoiceId}/transition`,
-      headers: { authorization: `Bearer ${rahulToken}` },
-      payload: { toStatus: "REVIEW" },
-    });
+    const submit = await transitionAs(app, testOrgId, invoiceId, rahulToken, "REVIEW");
     expect(submit.statusCode).toBe(200);
 
     const stale = await patch(invoiceId, { version: loaded.version, vendor: "Based on the old Draft" });

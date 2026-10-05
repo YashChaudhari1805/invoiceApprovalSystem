@@ -2,6 +2,7 @@ import fp from "fastify-plugin";
 import { FastifyReply, FastifyRequest } from "fastify";
 import { Role, can } from "../lib/invoice-rules";
 
+import { isUuid } from "../lib/uuid";
 declare module "fastify" {
   interface FastifyInstance {
     requireMembership: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
@@ -15,9 +16,15 @@ export default fp(async (app) => {
   app.decorate(
     "requireMembership",
     async function (req: FastifyRequest, reply: FastifyReply) {
-      const orgId = (req.params as { orgId?: string }).orgId;
+      const { orgId } = req.params as { orgId?: string };
       if (!orgId) {
         reply.code(400).send({ error: "Missing organization id" });
+        return;
+      }
+      // A malformed id would otherwise reach Postgres as a bad uuid cast and
+      // come back as a 500 — it is a client error, so say so.
+      if (!isUuid(orgId)) {
+        reply.code(400).send({ error: "Invalid organization id" });
         return;
       }
 

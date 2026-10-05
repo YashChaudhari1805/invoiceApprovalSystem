@@ -54,6 +54,12 @@ export function EditInvoiceForm({
     setError(null);
     setConflict(false);
 
+    // `required` lets "   " through; the API and database reject it, so say so up front.
+    if (!vendor.trim() || !invoiceNumber.trim()) {
+      setError("Vendor and invoice number can't be blank.");
+      return;
+    }
+
     const lineItemsError = getLineItemsError(lineItems);
     if (lineItemsError) {
       setShowLineItemErrors(true);
@@ -64,8 +70,8 @@ export function EditInvoiceForm({
 
     const payload = {
       version,
-      vendor,
-      invoiceNumber,
+      vendor: vendor.trim(),
+      invoiceNumber: invoiceNumber.trim(),
       invoiceDate,
       lineItems: lineItems.map((li) => ({
         description: li.description,

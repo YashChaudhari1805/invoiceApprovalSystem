@@ -146,3 +146,33 @@ export async function insertLineItemDirect(
     amount: 10,
   });
 }
+
+// TEST-ONLY, service-role only: inserts an invoice row with NO line items,
+// reproducing the "orphan" invoices an older API build left behind when its
+// second write (the line items) was refused. Normal users can no longer create
+// these (create_invoice() is all-or-nothing and direct INSERTs are revoked), so
+// the only way a test can get one is to bypass RLS like this.
+export async function insertInvoiceWithoutLineItems(
+  orgId: string,
+  createdBy: string,
+  invoiceNumber: string,
+  status: "DRAFT" | "REVIEW" = "DRAFT"
+): Promise<{ id: string; version: number }> {
+  const { data, error } = await admin
+    .from("invoices")
+    .insert({
+      organization_id: orgId,
+      vendor: "Orphan Vendor",
+      invoice_number: invoiceNumber,
+      invoice_date: "2026-01-01",
+      status,
+      taxable_amount: 1000,
+      tax_amount: 0,
+      total_amount: 1000,
+      created_by: createdBy,
+    })
+    .select("id, version")
+    .single();
+  if (error) throw error;
+  return data as { id: string; version: number };
+}

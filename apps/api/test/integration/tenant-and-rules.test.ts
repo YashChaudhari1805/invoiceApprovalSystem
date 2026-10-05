@@ -11,6 +11,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { createTestOrg } from "../helpers/test-org";
+import { createInvoiceRpc, transitionRpc } from "../helpers/invoices";
 // env vars are loaded by test/setup.ts (see vitest.config.ts's setupFiles)
 // before this file is imported
 
@@ -58,35 +59,24 @@ describe("tenant isolation (RLS)", () => {
     expect(data).toEqual([]);
   });
 
-  it("a user cannot insert an invoice into an org they don't belong to", async () => {
-    const { error } = await yash.from("invoices").insert({
-      organization_id: xyzMetalsId,
-      vendor: "Test Vendor",
-      invoice_number: `RLS-TEST-${Date.now()}`,
-      invoice_date: "2026-01-01",
-      taxable_amount: 100,
-      tax_amount: 18,
-      total_amount: 118,
-      created_by: (await yash.auth.getUser()).data.user!.id,
-    });
-    expect(error).not.toBeNull(); // RLS policy should reject this insert
+  it("a user cannot create an invoice in an org they don't belong to", async () => {
+    // Yash has no membership in XYZ Metals. create_invoice() must refuse with
+    // "forbidden" (42501) specifically — not merely "some error".
+    const { data, error } = await createInvoiceRpc(yash, xyzMetalsId, { invoiceNumber: `RLS-TEST-${Date.now()}` });
+    expect(data).toBeNull();
+    expect(error?.code).toBe("42501");
   });
+
 });
 
 describe("role-scoped access", () => {
   it("Rahul is Viewer at XYZ Metals and cannot create an invoice there", async () => {
-    const { error } = await rahul.from("invoices").insert({
-      organization_id: xyzMetalsId,
-      vendor: "Test Vendor",
-      invoice_number: `VIEWER-TEST-${Date.now()}`,
-      invoice_date: "2026-01-01",
-      taxable_amount: 100,
-      tax_amount: 18,
-      total_amount: 118,
-      created_by: (await rahul.auth.getUser()).data.user!.id,
-    });
-    expect(error).not.toBeNull(); // insert policy requires ADMIN or OPERATOR
+    // Same person, Admin elsewhere: the role is per-organization.
+    const { data, error } = await createInvoiceRpc(rahul, xyzMetalsId, { invoiceNumber: `VIEWER-TEST-${Date.now()}` });
+    expect(data).toBeNull();
+    expect(error?.code).toBe("42501");
   });
+
 });
 
 describe("maker-checker + workflow (transition_invoice RPC)", () => {
@@ -100,29 +90,15 @@ describe("maker-checker + workflow (transition_invoice RPC)", () => {
     testOrgId = testOrg.orgId;
     cleanupTestOrg = testOrg.cleanup;
 
-    const rahulId = (await rahul.auth.getUser()).data.user!.id;
-    const { data, error } = await rahul
-      .from("invoices")
-      .insert({
-        organization_id: testOrgId,
-        vendor: "Tata Metals",
-        invoice_number: invoiceNumber,
-        invoice_date: "2026-01-01",
-        taxable_amount: 1000,
-        tax_amount: 180,
-        total_amount: 1180,
-        created_by: rahulId,
-      })
-      .select()
-      .single();
+    const { data: created, error } = await createInvoiceRpc(rahul, testOrgId, {
+      vendor: "Tata Metals",
+      invoiceNumber,
+    });
     if (error) throw error;
-    invoiceId = data.id;
+    invoiceId = created.id;
 
     // move it to REVIEW so approval is a valid next transition
-    const { error: transErr } = await rahul.rpc("transition_invoice", {
-      p_invoice_id: invoiceId,
-      p_to_status: "REVIEW",
-    });
+    const { error: transErr } = await transitionRpc(rahul, invoiceId, "REVIEW");
     if (transErr) throw transErr;
   });
 
@@ -131,28 +107,19 @@ describe("maker-checker + workflow (transition_invoice RPC)", () => {
   });
 
   it("blocks Rahul from approving his own invoice, even as Admin", async () => {
-    const { error } = await rahul.rpc("transition_invoice", {
-      p_invoice_id: invoiceId,
-      p_to_status: "APPROVED",
-    });
+    const { error } = await transitionRpc(rahul, invoiceId, "APPROVED");
     expect(error).not.toBeNull();
     expect(error!.message).toMatch(/cannot approve or reject an invoice you created/i);
   });
 
   it("allows Yash (a different Reviewer) to approve it", async () => {
-    const { data, error } = await yash.rpc("transition_invoice", {
-      p_invoice_id: invoiceId,
-      p_to_status: "APPROVED",
-    });
+    const { data, error } = await transitionRpc(yash, invoiceId, "APPROVED");
     expect(error).toBeNull();
     expect(data.status).toBe("APPROVED");
   });
 
   it("rejects an invalid transition out of a terminal state", async () => {
-    const { error } = await yash.rpc("transition_invoice", {
-      p_invoice_id: invoiceId,
-      p_to_status: "REVIEW",
-    });
+    const { error } = await transitionRpc(yash, invoiceId, "REVIEW");
     expect(error).not.toBeNull();
     expect(error!.message).toMatch(/invalid status transition/i);
   });
@@ -179,9 +146,11 @@ describe("self-membership protection (RLS)", () => {
       .update({ role: "VIEWER" })
       .eq("organization_id", testOrgId)
       .eq("user_id", rahulId);
-    // RLS silently matches zero rows rather than erroring, so we confirm by
-    // re-reading rather than relying on `error` alone.
-    expect(error).toBeNull();
+    // Before migration 0013, RLS silently matched zero rows (no error). Since 0013
+    // signed-in users hold no UPDATE privilege on memberships at all, so the
+    // database now refuses loudly with "permission denied" (42501). Either way
+    // the row must be untouched, which the re-read below confirms.
+    expect(error?.code).toBe("42501");
 
     const { data } = await rahul
       .from("memberships")
@@ -194,7 +163,12 @@ describe("self-membership protection (RLS)", () => {
 
   it("blocks an Admin from deleting their own membership row directly", async () => {
     const rahulId = (await rahul.auth.getUser()).data.user!.id;
-    await rahul.from("memberships").delete().eq("organization_id", testOrgId).eq("user_id", rahulId);
+    const { error } = await rahul
+      .from("memberships")
+      .delete()
+      .eq("organization_id", testOrgId)
+      .eq("user_id", rahulId);
+    expect(error?.code).toBe("42501"); // no DELETE privilege since 0013
 
     const { data } = await rahul
       .from("memberships")
@@ -220,30 +194,36 @@ describe("duplicate protection", () => {
     await cleanupTestOrg();
   });
 
-  it("only one of two simultaneous identical-invoice inserts succeeds", async () => {
-    const rahulId = (await rahul.auth.getUser()).data.user!.id;
+  it("only one of two simultaneous identical creates succeeds", async () => {
     const invoiceNumber = `DUP-TEST-${Date.now()}`;
-    const payload = {
-      organization_id: testOrgId,
-      vendor: "Tata Metals",
-      invoice_number: invoiceNumber,
-      invoice_date: "2026-01-01",
-      taxable_amount: 500,
-      tax_amount: 90,
-      total_amount: 590,
-      created_by: rahulId,
-    };
-
-    const results = await Promise.allSettled([
-      rahul.from("invoices").insert(payload),
-      rahul.from("invoices").insert(payload),
+    const results = await Promise.all([
+      createInvoiceRpc(rahul, testOrgId, { vendor: "Tata Metals", invoiceNumber }),
+      createInvoiceRpc(rahul, testOrgId, { vendor: "Tata Metals", invoiceNumber }),
     ]);
 
-    const errors = results.map((r) => (r.status === "fulfilled" ? r.value.error : r.reason));
-    const succeeded = errors.filter((e) => e === null).length;
-    const failed = errors.filter((e) => e !== null).length;
+    const succeeded = results.filter((r) => r.error === null);
+    const failed = results.filter((r) => r.error !== null);
+    expect(succeeded).toHaveLength(1);
+    expect(failed).toHaveLength(1);
+    expect(failed[0].error?.code).toBe("23505"); // unique violation, not some other failure
+  });
 
-    expect(succeeded).toBe(1);
-    expect(failed).toBe(1);
+  it("treats vendor and invoice number as the same regardless of case or surrounding spaces", async () => {
+    const n = Date.now();
+    const first = await createInvoiceRpc(rahul, testOrgId, { vendor: "Tata Metals", invoiceNumber: `TM-${n}` });
+    expect(first.error).toBeNull();
+
+    for (const [vendor, invoiceNumber] of [
+      ["tata metals", `TM-${n}`],
+      ["TATA METALS", `tm-${n}`],
+      ["  Tata Metals  ", `  TM-${n}  `],
+    ]) {
+      const dup = await createInvoiceRpc(rahul, testOrgId, { vendor, invoiceNumber });
+      expect(dup.error?.code, `"${vendor}" / "${invoiceNumber}" should be a duplicate`).toBe("23505");
+    }
+
+    // A genuinely different vendor with the same number is still allowed.
+    const other = await createInvoiceRpc(rahul, testOrgId, { vendor: "Tata Steel", invoiceNumber: `TM-${n}` });
+    expect(other.error).toBeNull();
   });
 });
