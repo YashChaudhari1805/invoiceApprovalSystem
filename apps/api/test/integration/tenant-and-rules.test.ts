@@ -146,9 +146,11 @@ describe("self-membership protection (RLS)", () => {
       .update({ role: "VIEWER" })
       .eq("organization_id", testOrgId)
       .eq("user_id", rahulId);
-    // RLS silently matches zero rows rather than erroring, so we confirm by
-    // re-reading rather than relying on `error` alone.
-    expect(error).toBeNull();
+    // Before migration 0013, RLS silently matched zero rows (no error). Since 0013
+    // signed-in users hold no UPDATE privilege on memberships at all, so the
+    // database now refuses loudly with "permission denied" (42501). Either way
+    // the row must be untouched, which the re-read below confirms.
+    expect(error?.code).toBe("42501");
 
     const { data } = await rahul
       .from("memberships")
@@ -161,7 +163,12 @@ describe("self-membership protection (RLS)", () => {
 
   it("blocks an Admin from deleting their own membership row directly", async () => {
     const rahulId = (await rahul.auth.getUser()).data.user!.id;
-    await rahul.from("memberships").delete().eq("organization_id", testOrgId).eq("user_id", rahulId);
+    const { error } = await rahul
+      .from("memberships")
+      .delete()
+      .eq("organization_id", testOrgId)
+      .eq("user_id", rahulId);
+    expect(error?.code).toBe("42501"); // no DELETE privilege since 0013
 
     const { data } = await rahul
       .from("memberships")
