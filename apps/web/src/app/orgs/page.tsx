@@ -12,7 +12,7 @@ interface Org {
 }
 
 export default async function OrgsPage() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     data: { session },
   } = await supabase.auth.getSession();

@@ -3,15 +3,9 @@
 import { useState, useTransition } from "react";
 import { addMemberAction, updateMemberRoleAction, removeMemberAction } from "./actions";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
+import { ROLES, type Member, type Role } from "@invoice-app/shared";
 
-const ROLES = ["ADMIN", "OPERATOR", "REVIEWER", "VIEWER"] as const;
 
-interface Member {
-  id: string;
-  role: string;
-  created_at: string;
-  user: { id: string; name: string; email: string };
-}
 
 export function MemberRow({
   orgId,
@@ -34,7 +28,7 @@ export function MemberRow({
     setError(null);
     setPendingKind("role");
     startTransition(async () => {
-      const result = await updateMemberRoleAction(orgId, member.id, role as any);
+      const result = await updateMemberRoleAction(orgId, member.id, role as Role);
       if (result.error) setError(result.error);
       setPendingKind(null);
     });

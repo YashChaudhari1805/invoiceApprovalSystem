@@ -2,39 +2,18 @@ import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { apiFetch } from "@/lib/api";
 import { EditInvoiceForm } from "./form-client";
+import { canEditInvoice, type Org, type InvoiceDetail } from "@invoice-app/shared";
 
-interface Org {
-  id: string;
-  name: string;
-  slug: string;
-  role: string;
-}
 
-interface InvoiceDetail {
-  id: string;
-  vendor: string;
-  invoice_number: string;
-  invoice_date: string;
-  status: string;
-  version: number;
-  lineItems: { description: string; quantity: string | number; rate: string | number; tax_rate: string | number }[];
-}
 
-// Mirrors apps/api/src/lib/invoice-rules.ts's canEditInvoice — kept in sync
-// by hand since this is UX only. The API independently enforces the real
-// rule regardless of what this function decides.
-function canEdit(role: string, status: string): boolean {
-  if (role === "ADMIN") return true;
-  if (role === "OPERATOR") return status === "DRAFT" || status === "REVIEW";
-  return false;
-}
 
-export default async function EditInvoicePage({
-  params,
-}: {
-  params: { orgId: string; invoiceId: string };
-}) {
-  const supabase = createClient();
+export default async function EditInvoicePage(
+  props: {
+    params: Promise<{ orgId: string; invoiceId: string }>;
+  }
+) {
+  const params = await props.params;
+  const supabase = await createClient();
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -54,7 +33,7 @@ export default async function EditInvoicePage({
     notFound();
   }
 
-  if (!canEdit(currentOrg.role, invoice.status)) {
+  if (!canEditInvoice({ role: currentOrg.role, status: invoice.status })) {
     redirect(`/orgs/${params.orgId}/invoices/${params.invoiceId}`);
   }
 

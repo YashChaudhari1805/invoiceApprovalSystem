@@ -2,7 +2,8 @@
   "name": "invoice-app",
   "private": true,
   "workspaces": [
-    "apps/*"
+    "apps/*",
+    "packages/*"
   ],
   "scripts": {
     "dev:api": "npm run dev -w apps/api",
@@ -10,18 +11,24 @@
     "seed": "tsx scripts/seed.ts",
     "cleanup:test-data": "tsx scripts/cleanup-test-data.ts",
     "lint": "npm run lint --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run build -w packages/shared && npm run typecheck -w apps/api && npm run typecheck -w apps/web",
     "test:unit": "npm run test:unit -w apps/api",
     "test:integration": "npm run test:integration -w apps/api",
-    "build": "npm run build --workspaces --if-present",
-    "seed:test": "tsx scripts/seed.ts --env=.env.test"
+    "build": "npm run build -w packages/shared && npm run build -w apps/api && npm run build -w apps/web",
+    "seed:test": "tsx scripts/seed.ts --env=.env.test",
+    "postinstall": "npm run build -w packages/shared",
+    "dev": "npm run build -w packages/shared && concurrently -n api,web -c blue,magenta \"npm:dev:api\" \"npm:dev:web\""
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.45.0",
+    "@supabase/supabase-js": "^2.117.2",
     "dotenv": "^16.4.5"
   },
   "devDependencies": {
+    "concurrently": "^10.0.5",
     "tsx": "^4.16.2",
     "typescript": "^5.5.4"
+  },
+  "engines": {
+    "node": ">=20.19.0"
   }
 }

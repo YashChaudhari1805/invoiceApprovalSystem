@@ -3,6 +3,7 @@ import { Bricolage_Grotesque, Public_Sans } from "next/font/google";
 import "@/styles/index.css";
 import { ToastProvider } from "@/components/ui/toast";
 import { RouteProgressBar } from "@/components/layout/route-progress-bar";
+import Script from "next/script";
 
 const heading = Bricolage_Grotesque({ subsets: ["latin"], variable: "--font-heading", weight: ["500", "600", "700"] });
 const body = Public_Sans({ subsets: ["latin"], variable: "--font-body" });
@@ -24,11 +25,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             stay in sync with THEME_STORAGE_KEY in components/theme-toggle
             — it's duplicated as a literal because an inline boot script
             can't import a module constant. */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{if(localStorage.getItem("invoice-app-theme")==="dark"){document.documentElement.setAttribute("data-theme","dark");}}catch(e){}})();`,
-          }}
-        />
+        <Script id="theme-boot" strategy="beforeInteractive">
+          {`(function(){try{if(localStorage.getItem("invoice-app-theme")==="dark"){document.documentElement.setAttribute("data-theme","dark");}}catch(e){}})();`}
+        </Script>
       </head>
       <body suppressHydrationWarning className="min-h-screen bg-canvas font-sans text-ink-900 antialiased">
         <RouteProgressBar />

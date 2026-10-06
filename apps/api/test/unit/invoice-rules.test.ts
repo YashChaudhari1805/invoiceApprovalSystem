@@ -4,8 +4,8 @@ import {
   canApprove,
   canEditInvoice,
   computeInvoiceTotals,
-  can,
-} from "../../src/lib/invoice-rules";
+} from "../../src/modules/invoices/rules";
+import { can } from "../../src/shared/permissions";
 
 describe("status transitions", () => {
   it("allows Draft -> Review", () => {

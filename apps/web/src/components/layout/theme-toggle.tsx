@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useIsClient } from "@/hooks/use-is-client";
 import { SunIcon, MoonIcon } from "@/components/ui/icons";
 
 export const THEME_STORAGE_KEY = "invoice-app-theme";
@@ -15,11 +16,12 @@ export function ThemeToggle({ className }: { className?: string }) {
   // null until the effect below reads the attribute the boot script already
   // set — avoids this button briefly showing the wrong icon (sun vs moon)
   // for one frame before hydration catches up.
-  const [theme, setTheme] = useState<"dark" | "light" | null>(null);
-
-  useEffect(() => {
-    setTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light");
-  }, []);
+  // The boot script in app/layout.tsx has already set data-theme before hydration.
+  // `override` holds a choice made after load; before the client is ready, render a placeholder.
+  const isClient = useIsClient();
+  const [override, setTheme] = useState<"dark" | "light" | null>(null);
+  const theme: "dark" | "light" | null =
+    override ?? (isClient ? (document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light") : null);
 
   function toggle() {
     const next = theme === "dark" ? "light" : "dark";

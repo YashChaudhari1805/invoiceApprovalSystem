@@ -6,13 +6,8 @@ import { useState } from "react";
 import { SignOutLink } from "@/components/layout/sign-out-link";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { InvoicesIcon, ActivityIcon, MembersIcon } from "@/components/ui/icons";
+import { can, type Org, type Role } from "@invoice-app/shared";
 
-interface Org {
-  id: string;
-  name: string;
-  slug: string;
-  role: string;
-}
 
 export function AppShell({
   orgs,
@@ -23,7 +18,7 @@ export function AppShell({
 }: {
   orgs: Org[];
   currentOrgId: string;
-  currentRole: string;
+  currentRole: Role;
   userEmail: string;
   children: React.ReactNode;
 }) {
@@ -43,7 +38,7 @@ export function AppShell({
   const navItems = [
     { href: `/orgs/${currentOrgId}/invoices`, label: "Invoices", Icon: InvoicesIcon },
     { href: `/orgs/${currentOrgId}/activity`, label: "Activity", Icon: ActivityIcon },
-    ...(currentRole === "ADMIN" ? [{ href: `/orgs/${currentOrgId}/members`, label: "Members", Icon: MembersIcon }] : []),
+    ...(can(currentRole, "member:manage") ? [{ href: `/orgs/${currentOrgId}/members`, label: "Members", Icon: MembersIcon }] : []),
   ];
 
   return (

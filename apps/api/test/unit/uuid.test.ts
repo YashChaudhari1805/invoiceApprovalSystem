@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isUuid } from "../../src/lib/uuid";
+import { isUuid } from "../../src/shared/uuid";
 
 describe("isUuid", () => {
   it("accepts ordinary v4 UUIDs, in either case", () => {

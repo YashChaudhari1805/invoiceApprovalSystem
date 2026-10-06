@@ -1,7 +1,7 @@
 import fp from "fastify-plugin";
 import { FastifyReply, FastifyRequest } from "fastify";
 import { SupabaseClient } from "@supabase/supabase-js";
-import { verifyAccessToken, createUserClient } from "../lib/supabase";
+import { verifyAccessToken, createUserClient } from "../shared/supabase";
 
 export interface AuthUser {
   userId: string;

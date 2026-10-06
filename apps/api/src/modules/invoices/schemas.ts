@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { INVOICE_STATUSES } from "@invoice-app/shared";
 
 export const lineItemInputSchema = z.object({
   // .trim() runs before .min(1): "   " becomes "" and is rejected, exactly as
@@ -36,7 +37,7 @@ export const transitionSchema = z.object({
 export const listQuerySchema = z.object({
   search: z.string().optional(),
   vendor: z.string().optional(),
-  status: z.enum(["DRAFT", "REVIEW", "APPROVED", "REJECTED"]).optional(),
+  status: z.enum(INVOICE_STATUSES).optional(),
   page: z.coerce.number().int().positive().default(1),
   pageSize: z.coerce.number().int().positive().max(100).default(20),
 });

@@ -2,22 +2,22 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { apiFetch } from "@/lib/api";
 import { AppShell } from "@/components/layout/app-shell";
+import type { Org } from "@invoice-app/shared";
 
-interface Org {
-  id: string;
-  name: string;
-  slug: string;
-  role: string;
-}
 
-export default async function OrgLayout({
-  children,
-  params,
-}: {
-  children: React.ReactNode;
-  params: { orgId: string };
-}) {
-  const supabase = createClient();
+export default async function OrgLayout(
+  props: {
+    children: React.ReactNode;
+    params: Promise<{ orgId: string }>;
+  }
+) {
+  const params = await props.params;
+
+  const {
+    children
+  } = props;
+
+  const supabase = await createClient();
   const {
     data: { session },
   } = await supabase.auth.getSession();

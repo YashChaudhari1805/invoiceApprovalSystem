@@ -36,7 +36,9 @@ export default function SignupPage() {
     }
 
     if (data.session) {
-      window.location.href = "/orgs";
+      // Deliberate hard navigation: the next page load must be a real request carrying the new session cookie.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.href = "/orgs";
       return;
     }
 

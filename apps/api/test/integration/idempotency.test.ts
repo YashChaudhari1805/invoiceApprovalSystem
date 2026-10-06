@@ -1,5 +1,5 @@
 // Proves section 10's idempotency requirement, through the real HTTP route
-// (migrations/0012_idempotency.sql, apps/api/src/routes/invoices.ts):
+// (migrations/0012_idempotency.sql, apps/api/src/modules/invoices/routes.ts):
 // sending the same POST /orgs/:orgId/invoices request twice with the same
 // Idempotency-Key header returns the ORIGINAL response, and only one
 // invoice is ever created — as opposed to the (organization_id, vendor,

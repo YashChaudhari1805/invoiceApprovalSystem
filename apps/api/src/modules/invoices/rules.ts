@@ -2,34 +2,15 @@
 // easiest to get subtly wrong (rounding, off-by-one transition logic), so
 // they're isolated here specifically to make them fast and easy to unit test.
 
-export type InvoiceStatus = "DRAFT" | "REVIEW" | "APPROVED" | "REJECTED";
-export type Role = "ADMIN" | "OPERATOR" | "REVIEWER" | "VIEWER";
-
-export const ALLOWED_TRANSITIONS: Record<InvoiceStatus, InvoiceStatus[]> = {
-  DRAFT: ["REVIEW"],
-  REVIEW: ["APPROVED", "REJECTED"],
-  APPROVED: [],
-  REJECTED: [],
-};
-
-export function isValidTransition(from: InvoiceStatus, to: InvoiceStatus): boolean {
-  return ALLOWED_TRANSITIONS[from].includes(to);
-}
-
-export function isApprovalStep(to: InvoiceStatus): boolean {
-  return to === "APPROVED" || to === "REJECTED";
-}
-
-const PERMISSIONS = {
-  "invoice:view": ["ADMIN", "OPERATOR", "REVIEWER", "VIEWER"],
-  "invoice:create": ["ADMIN", "OPERATOR"],
-  "invoice:approve": ["ADMIN", "REVIEWER"],
-  "member:manage": ["ADMIN"],
-} as const satisfies Record<string, Role[]>;
-
-export function can(role: Role, permission: keyof typeof PERMISSIONS): boolean {
-  return (PERMISSIONS[permission] as readonly Role[]).includes(role);
-}
+export {
+  ALLOWED_TRANSITIONS,
+  isValidTransition,
+  isApprovalStep,
+  canApprove,
+  canEditInvoice,
+  INVOICE_STATUSES,
+  type InvoiceStatus,
+} from "@invoice-app/shared";
 
 export interface LineItemInput {
   description: string;
@@ -87,21 +68,4 @@ export function computeInvoiceTotals(lineItems: LineItemInput[]): InvoiceTotals 
     taxAmount,
     totalAmount: round2(taxableAmount + taxAmount),
   };
-}
-
-// The maker-checker rule, isolated as a pure predicate so it can be unit
-// tested without touching the database.
-export function canApprove(params: { actorId: string; creatorId: string; role: Role }): boolean {
-  if (!can(params.role, "invoice:approve")) return false;
-  if (params.actorId === params.creatorId) return false;
-  return true;
-}
-
-// Edit permission depends on both role AND the invoice's current status —
-// Admin can edit regardless of status; Operator only while it's still
-// Draft or Review (per the spec's permission matrix).
-export function canEditInvoice(params: { role: Role; status: InvoiceStatus }): boolean {
-  if (params.role === "ADMIN") return true;
-  if (params.role === "OPERATOR") return params.status === "DRAFT" || params.status === "REVIEW";
-  return false;
 }

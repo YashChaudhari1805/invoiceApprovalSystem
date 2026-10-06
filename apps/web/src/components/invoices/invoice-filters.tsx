@@ -35,8 +35,12 @@ export function InvoiceFilters() {
   // If the URL changes from somewhere other than this component — browser
   // back/forward, a shared link, the pagination controls resetting page —
   // keep the inputs in sync with it instead of showing stale local state.
-  useEffect(() => setSearch(urlSearch), [urlSearch]);
-  useEffect(() => setVendor(urlVendor), [urlVendor]);
+  const [syncedUrl, setSyncedUrl] = useState({ search: urlSearch, vendor: urlVendor });
+  if (syncedUrl.search !== urlSearch || syncedUrl.vendor !== urlVendor) {
+    setSyncedUrl({ search: urlSearch, vendor: urlVendor });
+    setSearch(urlSearch);
+    setVendor(urlVendor);
+  }
 
   function pushParams(next: Partial<Record<"search" | "vendor" | "status", string>>) {
     startRouteProgress();

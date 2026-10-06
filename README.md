@@ -58,11 +58,8 @@ Copy `.env.example` to `.env` in the repo root and fill in your Supabase values 
 cp .env.example .env
 ```
 
-Then copy `apps/web/.env.example` to `apps/web/.env.local` and fill in the same Supabase URL/anon key, plus `API_URL` pointing at your locally-running API (`http://localhost:4000` by default):
+The web app reads this same root `.env` (it needs no separate file). Optionally set `API_URL` if the API is not on `http://localhost:4000`. To override a value for the web app only, put it in `apps/web/.env.local`.
 
-```bash
-cp apps/web/.env.example apps/web/.env.local
-```
 
 ### 4. Install dependencies and seed data
 
@@ -77,11 +74,11 @@ New users can also self-register at `/signup` (Supabase Auth email/password) —
 
 ### 5. Run it
 
-Two terminals:
-
 ```bash
-npm run dev:api    # Fastify API on http://localhost:4000
-npm run dev:web    # Next.js frontend on http://localhost:3000
+npm run dev        # builds the shared package, then starts API (:4000) and web (:3000) together
+# or separately:
+npm run dev:api
+npm run dev:web
 ```
 
 Visit `http://localhost:3000`, log in as either seeded user.
@@ -111,7 +108,6 @@ The integration suite signs in as real users against a **real Supabase database*
 | `ALLOW_REMOTE_TEST_DB` | tests | Set to `1` to confirm a *hosted* project really is a throwaway test project. Not needed for `localhost` |
 | `FRONTEND_URL` | API (runtime) | The web app's origin, for CORS. Unset in production = CORS disabled (fails closed) |
 | `PORT` | API (runtime) | Defaults to 4000 |
-| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | web | Same project URL / anon key, in `apps/web/.env.local` |
 | `API_URL` | web | Where the web app reaches the API |
 
 3. Seed the demo users and organisations (safe to run repeatedly) with **`npm run seed:test`**. This reads `.env.test` and prints the project it is seeding before doing anything -- check that it is your TEST project. (Plain `npm run seed` reads `.env`, i.e. your normal project.)
@@ -212,3 +208,37 @@ scripts/
   seed.ts               creates seed users + orgs
   cleanup-test-data.ts  purges any stray test-generated invoices from real orgs
 ```
+
+
+## Project structure
+
+```
+apps/
+  api/                    Fastify API
+    src/
+      server.ts           entry point (loads .env, listens)
+      app.ts              builds the app: plugins, then feature modules
+      config/env.ts       the only place environment variables are read
+      plugins/            cross-cutting: cors, auth (JWT), tenant (org membership)
+      shared/             supabase clients, http error helpers, uuid/search utils
+      modules/
+        invoices/         routes.ts (HTTP) / repository.ts (database) / errors.ts / schemas.ts / rules.ts
+        members/  orgs/  activity/  health/
+    test/                 unit + integration tests
+  web/                    Next.js app (App Router)
+    src/
+      app/                routes only
+      components/         ui/ layout/ invoices/ system/
+      hooks/  lib/        client hooks, API client, Supabase helpers
+      styles/             tokens.css, base.css, components/*.css (see styles/README.md)
+packages/
+  shared/                 roles, permissions, statuses and API response types used by BOTH apps
+supabase/migrations/      database schema, RLS and the transactional SQL functions
+scripts/                  seed and cleanup
+```
+
+Rule of thumb: the API route layer only validates, authorises and translates errors; database calls live in each module's `repository.ts`; business rules live in Postgres functions and `@invoice-app/shared`. Changing a role, permission or status in `packages/shared` changes it for the API and the UI together.
+
+## Versions
+
+Node 20.19+ (`.nvmrc` pins 22, which CI uses). Next.js 16 with React 19, Fastify 5, Tailwind 3, ESLint 9 (flat config), Vitest 5, TypeScript 5.9. `npm install` builds `packages/shared` automatically (postinstall). Known accepted audit findings are build-time only (Tailwind 3's file watcher and the Next ESLint plugin); none ship to production.

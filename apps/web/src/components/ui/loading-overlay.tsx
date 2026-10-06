@@ -1,7 +1,7 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import { useEffect, useState } from "react";
+import { useIsClient } from "@/hooks/use-is-client";
 
 /**
  * App-wide "blocking" loading indicator. Renders a full-viewport overlay
@@ -24,8 +24,7 @@ import { useEffect, useState } from "react";
  * the client sidesteps document being unavailable during SSR.
  */
 export function LoadingOverlay({ show, label = "Working…" }: { show: boolean; label?: string }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const mounted = useIsClient();
 
   if (!show || !mounted) return null;
 

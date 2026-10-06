@@ -2,23 +2,13 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { apiFetch } from "@/lib/api";
 import { MemberRow, AddMemberForm } from "./member-controls";
+import { can, type Org, type Member } from "@invoice-app/shared";
 
-interface Org {
-  id: string;
-  name: string;
-  slug: string;
-  role: string;
-}
 
-interface Member {
-  id: string;
-  role: string;
-  created_at: string;
-  user: { id: string; name: string; email: string };
-}
 
-export default async function MembersPage({ params }: { params: { orgId: string } }) {
-  const supabase = createClient();
+export default async function MembersPage(props: { params: Promise<{ orgId: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient();
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -28,7 +18,7 @@ export default async function MembersPage({ params }: { params: { orgId: string 
   const currentOrg = orgs.find((o) => o.id === params.orgId);
   if (!currentOrg) redirect("/orgs");
 
-  if (currentOrg.role !== "ADMIN") {
+  if (!can(currentOrg.role, "member:manage")) {
     redirect(`/orgs/${params.orgId}/invoices`);
   }
 

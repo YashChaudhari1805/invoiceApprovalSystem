@@ -30,6 +30,8 @@ export default function LoginPage() {
     // page load is a real request carrying the new session cookie — never
     // served from Next's client-side Router Cache, which could otherwise
     // reuse a previous user's cached page for the same URL in this tab.
+    // Deliberate hard navigation: the next page load must be a real request carrying the new session cookie.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = "/orgs";
   }
 
@@ -58,6 +60,7 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               className="w-full input-field"
               placeholder="you@example.com"
+              suppressHydrationWarning
             />
           </div>
 

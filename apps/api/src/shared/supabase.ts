@@ -1,39 +1,13 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { createRemoteJWKSet, jwtVerify } from "jose";
-
-// Deliberately lazy: env vars are read the first time a client is actually
-// needed (inside a request), not at module import time. This matters because
-// `import` statements are hoisted and resolved before any other code in a
-// file runs — so reading process.env at the top of this module would happen
-// before a dotenv.config() call elsewhere in the app ever gets a chance to
-// run, regardless of where that call is textually positioned.
-function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`Missing required env var: ${name}`);
-  return value;
-}
-
-let _supabaseAdmin: SupabaseClient | null = null;
-
-// Service-role client: bypasses RLS entirely. Kept around for the handful of
-// operations that genuinely need elevated access (e.g. looking up a user by
-// email when adding them to an org) — no longer used for routine token
-// verification, see verifyAccessToken below.
-export function getSupabaseAdmin(): SupabaseClient {
-  if (!_supabaseAdmin) {
-    _supabaseAdmin = createClient(requireEnv("SUPABASE_URL"), requireEnv("SUPABASE_SERVICE_ROLE_KEY"), {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
-  }
-  return _supabaseAdmin;
-}
+import { requireEnv } from "../config/env";
 
 export interface VerifiedUser {
   userId: string;
   email: string;
 }
 
-// Lazily created on first use, same reasoning as getSupabaseAdmin above.
+// Lazily created on first use, env is read on first use, not at import.
 // createRemoteJWKSet fetches Supabase's public signing keys and caches them
 // in memory (with automatic refresh if a token references a key id it
 // doesn't recognize yet, e.g. after key rotation) — so this still avoids a

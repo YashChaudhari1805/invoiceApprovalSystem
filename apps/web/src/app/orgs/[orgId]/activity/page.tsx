@@ -2,15 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { apiFetch } from "@/lib/api";
+import type { ActivityEntry } from "@invoice-app/shared";
 
-interface ActivityEntry {
-  id: string;
-  action: string;
-  metadata: Record<string, unknown> | null;
-  created_at: string;
-  actor: { id: string; name: string } | null;
-  invoice: { id: string; invoice_number: string } | null;
-}
 
 const LABELS: Record<string, (e: ActivityEntry) => string> = {
   INVOICE_CREATED: () => "created invoice",
@@ -26,8 +19,9 @@ const LABELS: Record<string, (e: ActivityEntry) => string> = {
   },
 };
 
-export default async function ActivityPage({ params }: { params: { orgId: string } }) {
-  const supabase = createClient();
+export default async function ActivityPage(props: { params: Promise<{ orgId: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient();
   const {
     data: { session },
   } = await supabase.auth.getSession();

@@ -7,29 +7,10 @@ import { InvoiceFilters } from "@/components/invoices/invoice-filters";
 import { Pagination } from "@/components/ui/pagination";
 import { RevalidateOnFocus } from "@/components/system/revalidate-on-focus";
 import { formatInvoiceDate } from "@/lib/dates";
+import { can, type Org, type InvoiceListItem, type InvoiceSummary } from "@invoice-app/shared";
 
-interface Org {
-  id: string;
-  name: string;
-  slug: string;
-  role: string;
-}
 
-interface InvoiceRow {
-  id: string;
-  vendor: string;
-  invoice_number: string;
-  invoice_date: string;
-  status: string;
-  total_amount: string | number;
-  created_at: string;
-}
 
-interface InvoiceSummary {
-  draft: number;
-  review: number;
-  processedRecently: number;
-}
 
 // Left-edge status stripe on the mobile card layout — same status→color
 // mapping StatusBadge uses, just applied as a border instead of a chip.
@@ -44,14 +25,15 @@ function money(n: string | number) {
   return `₹${Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
 }
 
-export default async function InvoiceListPage({
-  params,
-  searchParams,
-}: {
-  params: { orgId: string };
-  searchParams: { search?: string; vendor?: string; status?: string; page?: string };
-}) {
-  const supabase = createClient();
+export default async function InvoiceListPage(
+  props: {
+    params: Promise<{ orgId: string }>;
+    searchParams: Promise<{ search?: string; vendor?: string; status?: string; page?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
+  const supabase = await createClient();
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -74,7 +56,7 @@ export default async function InvoiceListPage({
   const [{ orgs }, { items, total }, summary] = await Promise.all([
     apiFetch("/orgs", session.access_token) as Promise<{ orgs: Org[] }>,
     apiFetch(`/orgs/${params.orgId}/invoices?${query.toString()}`, session.access_token) as Promise<{
-      items: InvoiceRow[];
+      items: InvoiceListItem[];
       total: number;
     }>,
     apiFetch(`/orgs/${params.orgId}/invoices/summary`, session.access_token) as Promise<InvoiceSummary>,
@@ -83,7 +65,7 @@ export default async function InvoiceListPage({
   const currentOrg = orgs.find((o) => o.id === params.orgId);
   if (!currentOrg) redirect("/orgs");
 
-  const canCreate = currentOrg.role === "ADMIN" || currentOrg.role === "OPERATOR";
+  const canCreate = can(currentOrg.role, "invoice:create");
 
   return (
     <div className="page">

@@ -6,50 +6,11 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { RevalidateOnFocus } from "@/components/system/revalidate-on-focus";
 import { InvoiceActions } from "./invoice-actions";
 import { formatInvoiceDate } from "@/lib/dates";
+import { canEditInvoice, type Org, type InvoiceDetail } from "@invoice-app/shared";
 
-interface Org {
-  id: string;
-  name: string;
-  slug: string;
-  role: string;
-}
 
-interface LineItem {
-  id: string;
-  description: string;
-  quantity: string | number;
-  rate: string | number;
-  tax_rate: string | number;
-  amount: string | number;
-}
 
-interface ActivityEntry {
-  id: string;
-  action: string;
-  metadata: Record<string, unknown> | null;
-  created_at: string;
-  actor: { id: string; name: string } | null;
-}
 
-interface InvoiceDetail {
-  id: string;
-  vendor: string;
-  invoice_number: string;
-  invoice_date: string;
-  status: string;
-  version: number;
-  taxable_amount: string | number;
-  tax_amount: string | number;
-  total_amount: string | number;
-  created_by: string;
-  created_at: string;
-  updated_at: string;
-  creator: { id: string; name: string; email: string } | null;
-  approver: { id: string; name: string; email: string } | null;
-  lineItems: LineItem[];
-  activity: ActivityEntry[];
-  availableActions: string[];
-}
 
 const ACTIVITY_LABELS: Record<string, string> = {
   INVOICE_CREATED: "created this invoice",
@@ -59,24 +20,18 @@ const ACTIVITY_LABELS: Record<string, string> = {
   INVOICE_REJECTED: "rejected this invoice",
 };
 
-// Mirrors apps/api/src/lib/invoice-rules.ts's canEditInvoice — UX only, the
-// API independently enforces the real rule.
-function canEdit(role: string, status: string): boolean {
-  if (role === "ADMIN") return true;
-  if (role === "OPERATOR") return status === "DRAFT" || status === "REVIEW";
-  return false;
-}
 
 function money(n: string | number) {
   return `₹${Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
 }
 
-export default async function InvoiceDetailPage({
-  params,
-}: {
-  params: { orgId: string; invoiceId: string };
-}) {
-  const supabase = createClient();
+export default async function InvoiceDetailPage(
+  props: {
+    params: Promise<{ orgId: string; invoiceId: string }>;
+  }
+) {
+  const params = await props.params;
+  const supabase = await createClient();
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -128,7 +83,7 @@ export default async function InvoiceDetailPage({
         </div>
       )}
 
-      {canEdit(currentOrg.role, invoice.status) && (
+      {canEditInvoice({ role: currentOrg.role, status: invoice.status }) && (
         <div className="mb-4">
           <Link
             href={`/orgs/${params.orgId}/invoices/${invoice.id}/edit`}

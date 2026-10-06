@@ -2,16 +2,12 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { apiFetch } from "@/lib/api";
 import { NewInvoiceForm } from "./form-client";
+import { can, type Org } from "@invoice-app/shared";
 
-interface Org {
-  id: string;
-  name: string;
-  slug: string;
-  role: string;
-}
 
-export default async function NewInvoicePage({ params }: { params: { orgId: string } }) {
-  const supabase = createClient();
+export default async function NewInvoicePage(props: { params: Promise<{ orgId: string }> }) {
+  const params = await props.params;
+  const supabase = await createClient();
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -21,7 +17,7 @@ export default async function NewInvoicePage({ params }: { params: { orgId: stri
   const currentOrg = orgs.find((o) => o.id === params.orgId);
   if (!currentOrg) redirect("/orgs");
 
-  const canCreate = currentOrg.role === "ADMIN" || currentOrg.role === "OPERATOR";
+  const canCreate = can(currentOrg.role, "invoice:create");
 
   return (
     <div className="page page-narrow">

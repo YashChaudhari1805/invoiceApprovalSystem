@@ -18,6 +18,8 @@ export function SignOutLink({ className }: { className?: string }) {
   async function handleSignOut() {
     setSigningOut(true);
     await supabase.auth.signOut();
+    // Deliberate hard navigation: the next page load must be a real request carrying the new session cookie.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = "/login";
   }
 

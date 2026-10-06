@@ -1,8 +1,8 @@
 import fp from "fastify-plugin";
 import { FastifyReply, FastifyRequest } from "fastify";
-import { Role, can } from "../lib/invoice-rules";
+import { Role, can, type Permission } from "../shared/permissions";
+import { isUuid } from "../shared/uuid";
 
-import { isUuid } from "../lib/uuid";
 declare module "fastify" {
   interface FastifyInstance {
     requireMembership: (req: FastifyRequest, reply: FastifyReply) => Promise<void>;
@@ -53,7 +53,7 @@ export default fp(async (app) => {
   );
 });
 
-export function requirePermission(permission: Parameters<typeof can>[1]) {
+export function requirePermission(permission: Permission) {
   return async (req: FastifyRequest, reply: FastifyReply) => {
     if (!can(req.membership.role, permission)) {
       reply.code(403).send({ error: "Forbidden" });

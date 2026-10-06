@@ -25,9 +25,10 @@ import { useRouter } from "next/navigation";
  */
 export function RevalidateOnFocus({ minIntervalMs = 5000 }: { minIntervalMs?: number }) {
   const router = useRouter();
-  const lastRefresh = useRef(Date.now());
+  const lastRefresh = useRef(0);
 
   useEffect(() => {
+    lastRefresh.current = Date.now();
     function maybeRefresh() {
       if (document.visibilityState !== "visible") return;
       const now = Date.now();
