@@ -17,7 +17,9 @@ const config: Config = {
       colors: {
         canvas: themedColor("canvas"),
         surface: themedColor("surface"),
-        "surface-high": themedColor("surface-high"), // hover/focus "state layer" — one step lighter than surface
+        "surface-high": themedColor("surface-high"),
+        brand: { 900: themedColor("brand-900"), 800: themedColor("brand-800"), text: themedColor("brand-text") },
+        brass: themedColor("brass"),
 
         // Text + border scale. ink-950 is always the *highest emphasis*
         // tone (headings) and ink-50 the most recessed (hover background) —
@@ -32,7 +34,7 @@ const config: Config = {
           100: themedColor("ink-100"),
           50: themedColor("ink-50"),
         },
-        // Primary brand hue — Material's iconic violet, tuned per theme for contrast.
+        // Blue-pen ink: actions, links, focus. Tuned per theme for contrast.
         accent: {
           700: themedColor("accent-700"), // button hover/pressed
           600: themedColor("accent-600"), // button fill, default link color
@@ -55,6 +57,8 @@ const config: Config = {
           100: themedColor("rose-100"), // rejected/error: chip container
         },
       },
+      borderRadius: { control: "var(--radius-control)", surface: "var(--radius-surface)", stamp: "var(--radius-stamp)" },
+      boxShadow: { raised: "var(--shadow-raised)", overlay: "var(--shadow-overlay)" },
       fontFamily: {
         heading: ["var(--font-heading)", "sans-serif"],
         sans: ["var(--font-body)", "sans-serif"],

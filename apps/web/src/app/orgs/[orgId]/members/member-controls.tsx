@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { addMemberAction, updateMemberRoleAction, removeMemberAction } from "./actions";
-import { LoadingOverlay } from "@/components/loading-overlay";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 
 const ROLES = ["ADMIN", "OPERATOR", "REVIEWER", "VIEWER"] as const;
 

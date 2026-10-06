@@ -2,8 +2,8 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { apiFetch } from "@/lib/api";
-import { StatusBadge } from "@/components/status-badge";
-import { RevalidateOnFocus } from "@/components/revalidate-on-focus";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { RevalidateOnFocus } from "@/components/system/revalidate-on-focus";
 import { InvoiceActions } from "./invoice-actions";
 import { formatInvoiceDate } from "@/lib/dates";
 
@@ -97,7 +97,7 @@ export default async function InvoiceDetailPage({
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-8 sm:py-8">
+    <div className="page page-narrow">
       <RevalidateOnFocus />
       <div className="mb-6 flex items-start justify-between">
         <div>
@@ -105,7 +105,7 @@ export default async function InvoiceDetailPage({
             <h1 className="font-heading text-xl font-semibold tracking-tight text-ink-950">
               {invoice.invoice_number}
             </h1>
-            <StatusBadge status={invoice.status} />
+            <StatusBadge status={invoice.status} large />
           </div>
           <p className="text-sm text-ink-500">{invoice.vendor}</p>
         </div>

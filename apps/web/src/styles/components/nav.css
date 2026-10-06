@@ -1,0 +1,13 @@
+@layer components {
+  .sidebar { @apply hidden w-[var(--sidebar-width)] shrink-0 flex-col bg-brand-900 text-brand-text md:flex; }
+  .sidebar-section { @apply border-white/10; }
+  .nav-item { @apply relative flex items-center gap-2.5 rounded-control px-3 py-2 text-sm font-medium transition-colors; }
+  .nav-item-active { @apply bg-white/10 text-white; }
+  .nav-item-active::before { content: ""; @apply absolute -left-3 top-2 bottom-2 w-[3px] rounded-r bg-brass; }
+  .nav-item-idle { @apply text-brand-text/75 hover:bg-white/5 hover:text-white; }
+  /* Re-points ink tokens inside the dark sidebar footer so shared controls
+     (ThemeToggle, SignOutLink) stay legible without per-call-site overrides. */
+  .sidebar-footer { --color-ink-700: 210 218 230; --color-ink-500: 160 172 190; --color-ink-100: 62 74 96; --color-accent-50: 33 45 66; --color-accent-600: 233 200 120; --color-accent-500: 233 200 120; }
+  .tabbar { @apply fixed inset-x-0 bottom-0 z-40 flex border-t border-ink-100 bg-surface md:hidden; }
+  .tabbar-item { @apply flex flex-1 flex-col items-center gap-0.5 py-2.5 text-xs font-medium transition-colors; }
+}

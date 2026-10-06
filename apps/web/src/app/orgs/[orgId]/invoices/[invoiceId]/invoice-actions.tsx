@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useToast } from "@/components/toast";
-import { LoadingOverlay } from "@/components/loading-overlay";
+import { useToast } from "@/components/ui/toast";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { transitionInvoiceAction } from "../actions";
 
 type ActionKind = "SUBMIT_FOR_REVIEW" | "APPROVE" | "REJECT";

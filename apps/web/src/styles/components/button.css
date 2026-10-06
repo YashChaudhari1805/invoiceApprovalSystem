@@ -1,0 +1,8 @@
+@layer components {
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-control px-4 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50; }
+  .btn-primary { @apply btn bg-accent-600 text-white hover:bg-accent-700; }
+  .btn-success { @apply btn bg-mint-500 text-surface hover:opacity-90; }
+  .btn-danger-outline { @apply btn border border-rose-600 text-rose-600 hover:bg-rose-100; }
+  .btn-quiet { @apply btn text-ink-700 hover:bg-ink-50; }
+  .btn-link { @apply text-sm font-semibold text-accent-600 underline-offset-4 transition-colors hover:text-accent-700 hover:underline; }
+}

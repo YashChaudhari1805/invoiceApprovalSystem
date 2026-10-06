@@ -2,7 +2,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { apiFetch } from "@/lib/api";
 import { redirect } from "next/navigation";
-import { SignOutLink } from "@/components/sign-out-link";
+import { SignOutLink } from "@/components/layout/sign-out-link";
 
 interface Org {
   id: string;

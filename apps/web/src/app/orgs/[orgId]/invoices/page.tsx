@@ -2,10 +2,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { apiFetch } from "@/lib/api";
-import { StatusBadge } from "@/components/status-badge";
-import { InvoiceFilters } from "@/components/invoice-filters";
-import { Pagination } from "@/components/pagination";
-import { RevalidateOnFocus } from "@/components/revalidate-on-focus";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { InvoiceFilters } from "@/components/invoices/invoice-filters";
+import { Pagination } from "@/components/ui/pagination";
+import { RevalidateOnFocus } from "@/components/system/revalidate-on-focus";
 import { formatInvoiceDate } from "@/lib/dates";
 
 interface Org {
@@ -86,7 +86,7 @@ export default async function InvoiceListPage({
   const canCreate = currentOrg.role === "ADMIN" || currentOrg.role === "OPERATOR";
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6 sm:px-8 sm:py-8">
+    <div className="page">
       <RevalidateOnFocus />
       <div className="mb-6 flex items-center justify-between">
         <div>
@@ -114,19 +114,19 @@ export default async function InvoiceListPage({
           href={`/orgs/${params.orgId}/invoices?status=REVIEW`}
           className="card p-3 transition hover:bg-ink-50 sm:p-4"
         >
-          <p className="text-[10px] font-medium uppercase tracking-wide text-ink-500 sm:text-xs">Pending review</p>
-          <p className="mt-1 font-heading text-lg font-semibold text-amber-600 sm:text-2xl">{summary.review}</p>
+          <p className="metric-label">Pending review</p>
+          <p className="metric-value text-amber-600">{summary.review}</p>
         </Link>
         <Link
           href={`/orgs/${params.orgId}/invoices?status=DRAFT`}
           className="card p-3 transition hover:bg-ink-50 sm:p-4"
         >
-          <p className="text-[10px] font-medium uppercase tracking-wide text-ink-500 sm:text-xs">Drafts</p>
-          <p className="mt-1 font-heading text-lg font-semibold text-ink-700 sm:text-2xl">{summary.draft}</p>
+          <p className="metric-label">Drafts</p>
+          <p className="metric-value text-ink-700">{summary.draft}</p>
         </Link>
         <div className="card p-3 sm:p-4">
-          <p className="text-[10px] font-medium uppercase tracking-wide text-ink-500 sm:text-xs">Processed (7d)</p>
-          <p className="mt-1 font-heading text-lg font-semibold text-mint-500 sm:text-2xl">
+          <p className="metric-label">Processed (7d)</p>
+          <p className="metric-value text-mint-500">
             {summary.processedRecently}
           </p>
         </div>
@@ -149,21 +149,21 @@ export default async function InvoiceListPage({
                 rounded-corner container instead of the whole card clipping
                 it or the page overflowing sideways. */}
             <div className="hidden overflow-x-auto sm:block">
-              <table className="w-full min-w-[560px] text-sm">
+              <table className="ledger min-w-[560px]">
                 <thead>
-                  <tr className="border-b border-ink-100 text-left text-xs font-medium uppercase tracking-wide text-ink-500">
-                    <th className="px-4 py-2.5 font-medium">Invoice number</th>
-                    <th className="px-4 py-2.5 font-medium">Vendor</th>
-                    <th className="px-4 py-2.5 font-medium">Date</th>
-                    <th className="px-4 py-2.5 font-medium">Status</th>
-                    <th className="px-4 py-2.5 text-right font-medium">Total</th>
+                  <tr>
+                    <th className="">Invoice number</th>
+                    <th className="">Vendor</th>
+                    <th className="">Date</th>
+                    <th className="">Status</th>
+                    <th className="text-right">Total</th>
                     <th className="w-10 px-2 py-2.5"><span className="sr-only">Open</span></th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-ink-100">
+                <tbody>
                   {items.map((inv) => (
-                    <tr key={inv.id} className="transition hover:bg-ink-50">
-                      <td className="px-4 py-3">
+                    <tr key={inv.id}>
+                      <td >
                         <Link
                           href={`/orgs/${params.orgId}/invoices/${inv.id}`}
                           className="font-semibold text-accent-600 underline-offset-4 transition hover:text-accent-500 hover:underline focus-visible:underline"
@@ -171,15 +171,15 @@ export default async function InvoiceListPage({
                           {inv.invoice_number}
                         </Link>
                       </td>
-                      <td className="px-4 py-3 text-ink-700">{inv.vendor}</td>
-                      <td className="px-4 py-3 text-ink-500">
+                      <td className="text-ink-700">{inv.vendor}</td>
+                      <td className="text-ink-500">
                         {formatInvoiceDate(inv.invoice_date)}
                       </td>
-                      <td className="px-4 py-3">
+                      <td >
                         <StatusBadge status={inv.status} />
                       </td>
-                      <td className="px-4 py-3 text-right font-medium text-ink-900">{money(inv.total_amount)}</td>
-                      <td className="px-2 py-3 text-right">
+                      <td className="amount">{money(inv.total_amount)}</td>
+                      <td className="px-2 text-right">
                         {/* A visible "open" cue on every row. The invoice number link above is the
                             accessible one, so this is hidden from keyboard and screen readers. */}
                         <Link

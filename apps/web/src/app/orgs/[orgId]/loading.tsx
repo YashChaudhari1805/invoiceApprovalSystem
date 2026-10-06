@@ -1,4 +1,4 @@
-import { Skeleton } from "@/components/skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 
 /**
  * Covers orgs/[orgId]/layout.tsx itself, not just the page below it.
@@ -39,7 +39,7 @@ export default function Loading() {
       </header>
 
       <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
-        <div className="mx-auto max-w-5xl px-4 py-6 sm:px-8 sm:py-8">
+        <div className="page">
           <div className="mb-6 flex items-center justify-between">
             <div>
               <Skeleton className="mb-2 h-6 w-28" />

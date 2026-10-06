@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import { Manrope, Inter } from "next/font/google";
-import "./globals.css";
-import { ToastProvider } from "@/components/toast";
-import { RouteProgressBar } from "@/components/route-progress-bar";
+import { Bricolage_Grotesque, Public_Sans } from "next/font/google";
+import "@/styles/index.css";
+import { ToastProvider } from "@/components/ui/toast";
+import { RouteProgressBar } from "@/components/layout/route-progress-bar";
 
-const heading = Manrope({ subsets: ["latin"], variable: "--font-heading", weight: ["500", "600", "700"] });
-const body = Inter({ subsets: ["latin"], variable: "--font-body" });
+const heading = Bricolage_Grotesque({ subsets: ["latin"], variable: "--font-heading", weight: ["500", "600", "700"] });
+const body = Public_Sans({ subsets: ["latin"], variable: "--font-body" });
 
 export const metadata: Metadata = {
   title: "Invoice Approval System",
@@ -14,14 +14,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${heading.variable} ${body.variable}`}>
+    <html lang="en" suppressHydrationWarning className={`${heading.variable} ${body.variable}`}>
       <head>
-        {/* Runs before hydration/paint. Dark is the CSS default (see :root
-            in globals.css), so this script only ever has to ADD
-            data-theme="light" when that was the stored choice — there's
-            nothing to do for a dark-preferring or first-time visitor,
-            which is what keeps dark the true default rather than a value
-            this script has to actively apply. Inline + synchronous is what
+        {/* Runs before hydration/paint. Light is the CSS default (see :root in
+            styles/tokens.css), so this script only ever has to ADD
+            data-theme="dark" when that was the stored choice. Inline + synchronous is what
             avoids a flash of the wrong theme; an effect in a component
             would run after first paint. The localStorage key here must
             stay in sync with THEME_STORAGE_KEY in components/theme-toggle
@@ -29,11 +26,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             can't import a module constant. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{if(localStorage.getItem("invoice-app-theme")==="light"){document.documentElement.setAttribute("data-theme","light");}}catch(e){}})();`,
+            __html: `(function(){try{if(localStorage.getItem("invoice-app-theme")==="dark"){document.documentElement.setAttribute("data-theme","dark");}}catch(e){}})();`,
           }}
         />
       </head>
-      <body className="min-h-screen bg-canvas font-sans text-ink-900 antialiased">
+      <body suppressHydrationWarning className="min-h-screen bg-canvas font-sans text-ink-900 antialiased">
         <RouteProgressBar />
         <ToastProvider>{children}</ToastProvider>
       </body>

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { LoadingOverlay } from "@/components/loading-overlay";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 
 // Base look always applies — a proper outlined pill button rather than a
 // plain text link, so it doesn't get lost as an afterthought next to the

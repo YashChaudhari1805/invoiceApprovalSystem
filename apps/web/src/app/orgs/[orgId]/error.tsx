@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { SignOutLink } from "@/components/sign-out-link";
+import { SignOutLink } from "@/components/layout/sign-out-link";
 
 /**
  * Next.js error boundary for everything under /orgs/[orgId] — the layout

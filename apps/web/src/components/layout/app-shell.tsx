@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { SignOutLink } from "./sign-out-link";
-import { ThemeToggle } from "./theme-toggle";
-import { InvoicesIcon, ActivityIcon, MembersIcon } from "./icons";
+import { SignOutLink } from "@/components/layout/sign-out-link";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { InvoicesIcon, ActivityIcon, MembersIcon } from "@/components/ui/icons";
 
 interface Org {
   id: string;
@@ -49,22 +49,22 @@ export function AppShell({
   return (
     <div className="flex h-screen flex-col overflow-hidden md:flex-row">
       {/* Desktop sidebar — hidden below md, where the bottom bar takes over. */}
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-ink-100 bg-surface md:flex">
-        <div className="border-b border-ink-100 px-5 py-5">
+      <aside className="sidebar">
+        <div className="border-b sidebar-section px-5 py-5">
           <div className="relative">
             <button
               onClick={() => setSwitcherOpen((v) => !v)}
-              className="flex w-full items-center justify-between rounded-full px-3 py-1.5 text-left transition hover:bg-ink-50"
+              className="flex w-full items-center justify-between rounded-full px-3 py-1.5 text-left transition hover:bg-white/10"
             >
-              <span className="truncate font-heading text-sm font-semibold text-ink-950">
+              <span className="truncate font-heading text-sm font-semibold text-white">
                 {currentOrg?.name ?? "Select organization"}
               </span>
-              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" className="shrink-0 text-ink-500">
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none" className="shrink-0 text-brand-text/70">
                 <path d="M6 8l4 4 4-4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
             {switcherOpen && (
-              <div className="dropdown-panel">
+              <div className="dropdown-panel text-ink-900">
                 {orgs.map((org) => (
                   <Link
                     key={org.id}
@@ -75,7 +75,7 @@ export function AppShell({
                     }`}
                   >
                     <span className="truncate">{org.name}</span>
-                    <span className="ml-2 shrink-0 text-xs text-ink-300">{org.role}</span>
+                    <span className="ml-2 shrink-0 text-xs text-brand-text/50">{org.role}</span>
                   </Link>
                 ))}
               </div>
@@ -83,14 +83,14 @@ export function AppShell({
           </div>
         </div>
 
-        <nav className="flex-1 space-y-0.5 px-3 py-4">
+        <nav className="flex-1 space-y-1 px-3 py-4" aria-label="Primary">
           {navItems.map((item) => {
             const active = pathname?.startsWith(item.href.split("?")[0]);
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`nav-pill flex items-center gap-2.5 ${active ? "nav-pill-active" : "nav-pill-inactive"}`}
+                className={`nav-item ${active ? "nav-item-active" : "nav-item-idle"}`}
               >
                 <item.Icon className="h-4 w-4 shrink-0" />
                 {item.label}
@@ -99,9 +99,9 @@ export function AppShell({
           })}
         </nav>
 
-        <div className="border-t border-ink-100 px-5 py-4">
+        <div className="sidebar-footer border-t sidebar-section px-5 py-4">
           <div className="flex items-center justify-between gap-2">
-            <p className="min-w-0 flex-1 truncate text-xs text-ink-500">{userEmail}</p>
+            <p className="min-w-0 flex-1 truncate text-xs text-brand-text/70">{userEmail}</p>
             <ThemeToggle />
           </div>
           <SignOutLink className="mt-2 w-full" />
@@ -166,15 +166,15 @@ export function AppShell({
 
       {/* Mobile bottom bar — same three destinations as the desktop sidebar,
           reachable with a thumb instead of scrolled off the top of a tall page. */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 flex border-t border-ink-100 bg-surface md:hidden">
+      <nav className="tabbar" aria-label="Primary">
         {navItems.map((item) => {
           const active = pathname?.startsWith(item.href.split("?")[0]);
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-1 flex-col items-center gap-0.5 py-2.5 text-xs font-medium transition ${
-                active ? "text-accent-500" : "text-ink-500"
+              className={`tabbar-item ${
+                active ? "text-accent-600" : "text-ink-500"
               }`}
             >
               <item.Icon className="h-5 w-5" />

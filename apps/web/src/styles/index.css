@@ -1,0 +1,13 @@
+/* Single entry point (imported once by app/layout.tsx). Order matters:
+   tokens -> Tailwind layers -> base -> components. Resolved by postcss-import. */
+@import "./tokens.css";
+@import "tailwindcss/base";
+@import "./base.css";
+@import "tailwindcss/components";
+@import "./components/button.css";
+@import "./components/field.css";
+@import "./components/surface.css";
+@import "./components/stamp.css";
+@import "./components/nav.css";
+@import "./components/page.css";
+@import "tailwindcss/utilities";

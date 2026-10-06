@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { LoadingOverlay } from "@/components/loading-overlay";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
+import { AuthLayout } from "@/components/layout/auth-layout";
 
 export default function LoginPage() {
   const supabase = createClient();
@@ -33,17 +34,19 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-canvas px-4">
+    <AuthLayout title="Sign in" subtitle="Welcome back." footer={
+      <>
+        Don&apos;t have an account?{" "}
+          <Link href="/signup" className="btn-link">
+            Sign up
+          </Link>
+      </>
+    }>
       <LoadingOverlay show={loading} label="Signing in…" />
-      <div className="w-full max-w-sm">
-        <h1 className="mb-1 font-heading text-2xl font-semibold tracking-tight text-ink-950">
-          Sign in
-        </h1>
-        <p className="mb-8 text-sm text-ink-500">Invoice Approval System</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-ink-700">
+            <label htmlFor="email" className="field-label">
               Email
             </label>
             <input
@@ -59,7 +62,7 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-ink-700">
+            <label htmlFor="password" className="field-label">
               Password
             </label>
             <input
@@ -88,14 +91,6 @@ export default function LoginPage() {
             {loading ? "Signing in…" : "Sign in"}
           </button>
         </form>
-
-        <p className="mt-6 text-center text-sm text-ink-500">
-          Don&apos;t have an account?{" "}
-          <Link href="/signup" className="btn-link">
-            Sign up
-          </Link>
-        </p>
-      </div>
-    </div>
+    </AuthLayout>
   );
 }

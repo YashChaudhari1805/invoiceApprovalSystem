@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { startRouteProgress } from "./route-progress-bar";
+import { startRouteProgress } from "@/components/layout/route-progress-bar";
 
 const STATUSES = [
   { value: "", label: "All statuses" },

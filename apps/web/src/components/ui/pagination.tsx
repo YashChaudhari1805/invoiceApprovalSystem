@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { startRouteProgress } from "./route-progress-bar";
+import { startRouteProgress } from "@/components/layout/route-progress-bar";
 
 export function Pagination({ page, pageSize, total }: { page: number; pageSize: number; total: number }) {
   const router = useRouter();

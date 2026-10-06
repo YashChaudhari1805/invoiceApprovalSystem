@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { LineItemsEditor, LineItemDraft, getLineItemsError } from "@/components/line-items-editor";
-import { LoadingOverlay } from "@/components/loading-overlay";
+import { LineItemsEditor, LineItemDraft, getLineItemsError } from "@/components/invoices/line-items-editor";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { updateInvoiceAction } from "../../actions";
 
 interface ExistingLineItem {

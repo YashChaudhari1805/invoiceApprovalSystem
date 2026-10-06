@@ -1,0 +1,10 @@
+/* Status stamp: the signature element. An inked, outlined mark rather than a
+   filled pill, so status reads like an approval on paper. */
+@layer components {
+  .stamp { @apply inline-flex items-center rounded-stamp border-[1.5px] px-2 py-0.5 text-xs font-bold tracking-wide; }
+  .stamp-draft { @apply border-ink-300 text-ink-500; }
+  .stamp-review { @apply border-amber-600 bg-amber-100 text-amber-600; }
+  .stamp-approved { @apply border-mint-500 bg-mint-100 text-mint-500; }
+  .stamp-rejected { @apply border-rose-600 bg-rose-100 text-rose-600; }
+  .stamp-lg { @apply px-3 py-1 text-sm; transform: rotate(-2deg); }
+}

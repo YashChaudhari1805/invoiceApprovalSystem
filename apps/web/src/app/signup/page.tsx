@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { LoadingOverlay } from "@/components/loading-overlay";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
+import { AuthLayout } from "@/components/layout/auth-layout";
 
 export default function SignupPage() {
   const supabase = createClient();
@@ -63,17 +64,19 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-canvas px-4">
+    <AuthLayout title="Create account" subtitle="Set up your login." footer={
+      <>
+        Already have an account?{" "}
+          <Link href="/login" className="btn-link">
+            Sign in
+          </Link>
+      </>
+    }>
       <LoadingOverlay show={loading} label="Creating account…" />
-      <div className="w-full max-w-sm">
-        <h1 className="mb-1 font-heading text-2xl font-semibold tracking-tight text-ink-950">
-          Create account
-        </h1>
-        <p className="mb-8 text-sm text-ink-500">Invoice Approval System</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="name" className="mb-1.5 block text-sm font-medium text-ink-700">
+            <label htmlFor="name" className="field-label">
               Full name
             </label>
             <input
@@ -89,7 +92,7 @@ export default function SignupPage() {
           </div>
 
           <div>
-            <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-ink-700">
+            <label htmlFor="email" className="field-label">
               Email
             </label>
             <input
@@ -105,7 +108,7 @@ export default function SignupPage() {
           </div>
 
           <div>
-            <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-ink-700">
+            <label htmlFor="password" className="field-label">
               Password
             </label>
             <input
@@ -135,19 +138,10 @@ export default function SignupPage() {
             {loading ? "Creating account…" : "Create account"}
           </button>
         </form>
-
-        <p className="mt-6 text-center text-sm text-ink-500">
-          Already have an account?{" "}
-          <Link href="/login" className="btn-link">
-            Sign in
-          </Link>
-        </p>
-
-        <p className="mt-2 text-center text-xs text-ink-400">
+        <p className="mt-4 text-center text-xs text-ink-500">
           Creating an account doesn&apos;t add you to any organization yet — an Admin
           still needs to add you by email from their Members screen.
         </p>
-      </div>
-    </div>
+    </AuthLayout>
   );
 }

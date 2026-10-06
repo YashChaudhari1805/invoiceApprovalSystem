@@ -1,0 +1,101 @@
+/* Design tokens. The only place raw colour, type and spacing values live.
+   Colours are "R G B" triplets so Tailwind opacity modifiers keep working.
+   Direction: "Counting house", kept formal — neutral slate structure, white
+   paper surfaces, blue-pen ink for actions, stamped statuses. */
+:root {
+  /* Surfaces */
+  --color-canvas: 244 245 247;
+  --color-surface: 255 255 255;
+  --color-surface-high: 236 239 243;
+
+  /* Ink (text + rules): 950 strongest -> 50 faintest */
+  --color-ink-950: 15 23 42;
+  --color-ink-900: 30 41 59;
+  --color-ink-700: 62 75 96;
+  --color-ink-500: 88 102 124;
+  --color-ink-300: 148 160 178;
+  --color-ink-100: 216 222 231;
+  --color-ink-50: 234 237 243;
+
+  /* Brand: sidebar and structural slate; brass marks "you are here" */
+  --color-brand-900: 23 32 49;
+  --color-brand-800: 33 45 66;
+  --color-brand-text: 210 218 230;
+  --color-brass: 214 168 74;
+
+  /* Accent: blue-pen ink for actions, links, focus */
+  --color-accent-700: 30 49 140;
+  --color-accent-600: 39 63 176;
+  --color-accent-500: 62 91 214;
+  --color-accent-100: 224 230 250;
+  --color-accent-50: 238 241 253;
+
+  /* Status stamps: text + tint pairs */
+  --color-mint-500: 24 118 72;
+  --color-mint-100: 212 237 220;
+  --color-amber-600: 142 90 6;
+  --color-amber-100: 248 232 194;
+  --color-rose-600: 166 40 40;
+  --color-rose-100: 246 218 212;
+
+  --color-selection-bg: 224 230 250;
+  --color-selection-fg: 16 32 26;
+  --color-scrollbar-thumb: 200 206 216;
+  --color-scrollbar-thumb-hover: 170 178 191;
+
+  /* Type */
+  --text-xs: 0.75rem;   --text-sm: 0.875rem;  --text-base: 0.9375rem;
+  --text-lg: 1.125rem;  --text-xl: 1.375rem;  --text-2xl: 1.75rem;
+  --text-display: clamp(2.25rem, 1.4rem + 3.4vw, 3.75rem);
+
+  /* Radius: one scale, used by role (controls < surfaces < overlays) */
+  --radius-control: 0.5rem;
+  --radius-surface: 0.75rem;
+  --radius-stamp: 0.25rem;
+
+  /* Elevation */
+  --shadow-raised: 0 1px 0 rgb(var(--color-ink-950) / 0.04), 0 8px 24px -12px rgb(var(--color-ink-950) / 0.18);
+  --shadow-overlay: 0 16px 40px -12px rgb(var(--color-ink-950) / 0.35);
+
+  /* Layout */
+  --sidebar-width: 15rem;
+  --page-max: 72rem;
+  --page-gutter: clamp(1rem, 0.4rem + 2.4vw, 2.5rem);
+}
+
+:root[data-theme="dark"] {
+  --color-canvas: 15 17 22;
+  --color-surface: 23 26 33;
+  --color-surface-high: 33 37 46;
+
+  --color-ink-950: 241 244 249;
+  --color-ink-900: 226 231 239;
+  --color-ink-700: 183 192 206;
+  --color-ink-500: 142 152 168;
+  --color-ink-300: 98 107 122;
+  --color-ink-100: 45 51 62;
+  --color-ink-50: 32 36 45;
+
+  --color-brand-900: 11 13 18;
+  --color-brand-800: 22 25 32;
+  --color-brand-text: 184 194 210;
+  --color-brass: 226 184 98;
+
+  --color-accent-700: 58 82 190;
+  --color-accent-600: 74 100 214;
+  --color-accent-500: 128 150 245;
+  --color-accent-100: 29 38 74;
+  --color-accent-50: 24 31 58;
+
+  --color-mint-500: 110 214 154;
+  --color-mint-100: 22 52 34;
+  --color-amber-600: 244 190 90;
+  --color-amber-100: 62 44 10;
+  --color-rose-600: 250 140 132;
+  --color-rose-100: 66 24 24;
+
+  --color-selection-bg: 29 38 74;
+  --color-selection-fg: 236 242 238;
+  --color-scrollbar-thumb: 45 51 62;
+  --color-scrollbar-thumb-hover: 62 70 84;
+}

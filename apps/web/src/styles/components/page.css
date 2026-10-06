@@ -1,0 +1,14 @@
+@layer components {
+  .page { @apply mx-auto w-full max-w-[var(--page-max)] px-[var(--page-gutter)] py-6 md:py-10; }
+  .page-narrow { @apply max-w-3xl; }
+  .page-header { @apply mb-6 flex flex-wrap items-end justify-between gap-3; }
+  .page-title { @apply font-heading text-2xl font-semibold text-ink-950 md:text-[length:var(--text-2xl)]; }
+  .page-sub { @apply mt-1 text-sm text-ink-500; }
+  .metric-label { @apply text-xs font-medium text-ink-500; }
+  .metric-value { @apply mt-1 font-heading text-2xl font-semibold tabular-nums; }
+  .ledger { @apply w-full text-sm; }
+  .ledger th { @apply px-4 py-2.5 text-left text-xs font-medium text-ink-500; }
+  .ledger td { @apply px-4 py-3; }
+  .ledger tbody tr { @apply border-t border-ink-100 transition-colors hover:bg-ink-50; }
+  .amount { @apply text-right font-medium tabular-nums text-ink-900; }
+}

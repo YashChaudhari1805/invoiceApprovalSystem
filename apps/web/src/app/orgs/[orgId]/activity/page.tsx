@@ -38,7 +38,7 @@ export default async function ActivityPage({ params }: { params: { orgId: string
   };
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-8 sm:py-8">
+    <div className="page page-narrow">
       <h1 className="mb-6 font-heading text-xl font-semibold tracking-tight text-ink-950">Activity</h1>
 
       {activity.length === 0 ? (
