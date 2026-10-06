@@ -1,9 +1,9 @@
-const path = require("node:path");
-const { loadEnvConfig } = require("@next/env");
+import path from "node:path";
+import nextEnv from "@next/env";
 
 // One .env for the whole repo: load the root file so the web app shares the API's
 // Supabase settings. apps/web/.env.local can still override any value.
-loadEnvConfig(path.resolve(__dirname, "../.."));
+nextEnv.loadEnvConfig(path.resolve(import.meta.dirname, "../.."));
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -16,4 +16,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+export default nextConfig;

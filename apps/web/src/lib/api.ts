@@ -1,4 +1,11 @@
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+
 const API_URL = process.env.API_URL ?? "http://localhost:4000";
+
+export function getApiUrl() {
+  return API_URL;
+}
 
 // A free-tier host (Render, in this app's case — see README) can take
 // 30-60s to wake from a cold start; a Vercel serverless function has its
@@ -62,26 +69,29 @@ export async function apiFetch(path: string, accessToken: string, init: RequestI
       signal: controller.signal,
     });
   } catch (err) {
-    if (err instanceof Error && err.name === "AbortError") {
-      if (isWrite) {
+    const timedOut = err instanceof Error && err.name === "AbortError";
+    // Full technical detail goes to the server log; the user gets a plain-language message.
+    console.error(`[api] ${init.method ?? "GET"} ${path} failed (${timedOut ? "timeout" : "unreachable"}):`, err);
+
+    if (isWrite) {
+      if (timedOut) {
         throw new ApiOutcomeUnknownError(
           `The server did not respond within ${timeoutMs / 1000}s. Your change may or may not have been saved.`
         );
       }
-      throw new Error(
-        `API request to ${path} timed out after ${timeoutMs}ms. ` +
-          `If the API is hosted on a free tier that sleeps when idle, this is likely a cold start — ` +
-          `check ${API_URL}/health directly, or wait ~60s and retry.`
-      );
+      throw new Error("We couldn't reach the server, so nothing was saved. Please try again in a moment.");
     }
-    // Anything else here is a genuine connection failure (DNS, refused,
-    // TLS) — most commonly API_URL pointing at the wrong host/being unset
-    // in this environment's config, so say that explicitly rather than
-    // just rethrowing the raw fetch error.
-    throw new Error(
-      `Couldn't reach the API at ${API_URL}${path} — check that API_URL is set correctly for this ` +
-        `environment. (${err instanceof Error ? err.message : String(err)})`
-    );
+
+    // A read that gets no answer almost always means the API is asleep (free hosting
+    // pauses idle services) or restarting. Send the user to a page that waits for it
+    // and brings them back, instead of a crash screen.
+    let returnTo = "/orgs";
+    try {
+      returnTo = (await headers()).get("x-pathname") ?? returnTo;
+    } catch {
+      /* not inside a request */
+    }
+    redirect(`/waking-up?returnTo=${encodeURIComponent(returnTo)}`);
   } finally {
     clearTimeout(timeout);
   }

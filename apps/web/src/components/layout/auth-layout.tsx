@@ -1,3 +1,5 @@
+import { WarmApi } from "@/components/system/warm-api";
+
 /** Shared frame for sign-in and sign-up: a single centred form on the app canvas. */
 export function AuthLayout({
   title,
@@ -12,6 +14,7 @@ export function AuthLayout({
 }) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-canvas px-[var(--page-gutter)] py-12">
+      <WarmApi />
       <div className="w-full max-w-sm">
         <p className="mb-6 font-heading text-lg font-semibold text-ink-950">Invoice Approval</p>
         <div className="card-raised p-6 sm:p-8">

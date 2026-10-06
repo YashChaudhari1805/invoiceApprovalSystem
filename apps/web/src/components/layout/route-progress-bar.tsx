@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
 // Any module can call this directly to start the bar — used for
@@ -39,7 +39,17 @@ function RouteProgressBarInner() {
   const [visible, setVisible] = useState(false);
   const timers = useRef<{ tick?: ReturnType<typeof setInterval>; safety?: ReturnType<typeof setTimeout> }>({});
 
-  function start() {
+  const finish = useCallback(() => {
+    clearInterval(timers.current.tick);
+    clearTimeout(timers.current.safety);
+    setProgress(100);
+    setTimeout(() => {
+      setVisible(false);
+      setProgress(0);
+    }, 200);
+  }, []);
+
+  const start = useCallback(() => {
     clearInterval(timers.current.tick);
     clearTimeout(timers.current.safety);
     setVisible(true);
@@ -55,35 +65,27 @@ function RouteProgressBarInner() {
     // current page, a thrown error before the URL changes), don't leave the
     // bar stuck forever.
     timers.current.safety = setTimeout(() => finish(), 6000);
-  }
-
-  function finish() {
-    clearInterval(timers.current.tick);
-    clearTimeout(timers.current.safety);
-    setProgress(100);
-    setTimeout(() => {
-      setVisible(false);
-      setProgress(0);
-    }, 200);
-  }
+  }, [finish]);
 
   useEffect(() => {
     externalStart = start;
     return () => {
       externalStart = null;
     };
-  }, []);
+  }, [start]);
 
   // The URL actually changing is the real "navigation is done" signal,
   // regardless of what started the bar.
+  const search = searchParams?.toString();
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the URL changing is the external signal that navigation finished
     finish();
+    const t = timers.current;
     return () => {
-      clearInterval(timers.current.tick);
-      clearTimeout(timers.current.safety);
+      clearInterval(t.tick);
+      clearTimeout(t.safety);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, searchParams?.toString()]);
+  }, [pathname, search, finish]);
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
@@ -112,7 +114,7 @@ function RouteProgressBarInner() {
 
     document.addEventListener("click", onClick, { capture: true });
     return () => document.removeEventListener("click", onClick, { capture: true });
-  }, []);
+  }, [start]);
 
   if (!visible) return null;
 
